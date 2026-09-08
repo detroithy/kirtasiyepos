@@ -1,0 +1,31 @@
+# Flutter
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+.idea/
+.vscode/settings.json
+*.iml
+.DS_Store
+
+# Drift codegen çıktısı repo'da tutulur (derleme için gerekli değil ama
+# kolaylık olsun diye). İstenirse aşağıdaki satır açılır:
+# lib/**/*.g.dart
+
+# Yerel çalışma dosyaları
+*.log
+*.db
+*.db-journal
+
+# Android
+local.properties
+android/.gradle/
+
+# Windows
+windows/flutter/ephemeral/
+
+# Yedekler
+*.bak
