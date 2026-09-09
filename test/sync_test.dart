@@ -130,8 +130,7 @@ void main() {
     await db.close();
   });
 
-  test('adoptCategoryUuid ürünleri yeni satıra taşır', () async {
-    final db = AppDb.forTest(NativeDatabase.memory());
+  test('adoptCategoryUuid ürünleri yeni satıra taşır', () async {    final db = AppDb.forTest(NativeDatabase.memory());
     final c1 = await db
         .into(db.categories)
         .insert(CategoriesCompanion.insert(
@@ -167,4 +166,59 @@ void main() {
     expect(prods.single.categoryId, c2);
     await db.close();
   });
+
+  test('refreshProductOp bayat referansı canlı satırdan onarır',
+      () async {
+    final db = AppDb.forTest(NativeDatabase.memory());
+    await db.ensureSeed();
+    final p =
+        (await db.searchProducts('Kurşun Kalem')).single;
+    // Bayat payload: olmayan kategori uuid'si (senkron öncesi hali):
+    await db.enqueue(
+      table: 'products',
+      rowUuid: p.uuid,
+      payload: {
+        ...(await db.productPayload(p)),
+        'category_uuid': 'ölü-uuid-1234',
+      },
+    );
+    var ops = await db.pendingOps();
+    expect(ops.length, 1);
+    expect(await db.refreshProductOp(ops.single), true);
+    ops = await db.pendingOps();
+    expect(ops.length, 1);
+    final fixed =
+        jsonDecode(ops.single.payload) as Map<String, dynamic>;
+    expect(fixed['category_uuid'],
+        (await db.productByUuid(p.uuid)) == null
+            ? null
+            : await _catOf(db, p.id));
+    await db.close();
+  });
+
+  test('refreshProductOp öksüz opu düşürür', () async {
+    final db = AppDb.forTest(NativeDatabase.memory());
+    await db.ensureSeed();
+    await db.enqueue(
+      table: 'products',
+      rowUuid: 'olmayan-uuid',
+      payload: {'uuid': 'olmayan-uuid'},
+    );
+    final ops = await db.pendingOps();
+    expect(ops.length, 1);
+    expect(await db.refreshProductOp(ops.single), true);
+    expect(await db.pendingCount(), 0);
+    await db.close();
+  });
+}
+
+Future<String?> _catOf(AppDb db, int productId) async {
+  final p = await (db.select(db.products)
+        ..where((t) => t.id.equals(productId)))
+      .getSingle();
+  if (p.categoryId == null) return null;
+  final c = await (db.select(db.categories)
+        ..where((t) => t.id.equals(p.categoryId!)))
+      .getSingleOrNull();
+  return c?.uuid;
 }

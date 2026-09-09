@@ -421,12 +421,19 @@ class Cloud {
 
   /// FK 23503: satırın bağlı olduğu üst satır bulutta yoksa önce
   /// onu iter. Başarılıysa true (mevcut op yeniden denensin).
+  /// Ayrıca ürün op'ları canlı satırdan tazelenir (bayat category_uuid
+  /// gibi referanslar onarılır), canlı satırı kalmayan öksüz op düşer.
   Future<bool> _pushMissingParent(QueuedOp op, Object e) async {
+    final db = _db!;
+    // 1) Bayatlık onarımı (hata tipinden bağımsız):
+    if (op.entity == 'products' && await db.refreshProductOp(op)) {
+      return true; // tazelendi/öksüz düştü, yeniden denenecek
+    }
     final msg = e.toString();
     if (!msg.contains('23503') && !msg.contains('foreign key')) {
       return false;
     }
-    final db = _db!, sb = _sb!;
+    final sb = _sb!;
     try {
       final payload = jsonDecode(op.payload) as Map<String, dynamic>;
       if (op.entity == 'products') {

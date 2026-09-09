@@ -711,6 +711,28 @@ class AppDb extends _$AppDb {
 
   /// Bekleyen satış-satırı/hareket payloadlarındaki eski product_uuid'yi
   /// yeniler, eski uuid'li ürün kuyruk satırlarını düşürür.
+  /// Kuyruktaki ürün op'unu canlı satırdan tazeler (bayat
+  /// category_uuid/supplier gibi referanslar onarılır).
+  /// Satır yerelde yoksa op düşürülür. Değişiklik olduysa true
+  /// döner (op yeniden denensin).
+  Future<bool> refreshProductOp(QueuedOp op) async {
+    final prod = await productByUuid(op.rowUuid);
+    if (prod == null) {
+      await dropOps([op.id]);
+      return true;
+    }
+    final fresh = await productPayload(prod);
+    final cur = jsonDecode(op.payload) as Map<String, dynamic>;
+    if (cur['category_uuid'] != fresh['category_uuid'] ||
+        cur['supplier_uuid'] != fresh['supplier_uuid'] ||
+        cur['updated_at'] != fresh['updated_at']) {
+      await (update(syncQueue)..where((t) => t.id.equals(op.id)))
+          .write(SyncQueueCompanion(payload: Value(jsonEncode(fresh))));
+      return true;
+    }
+    return false;
+  }
+
   Future<void> rewriteProductUuid(String oldUuid, String newUuid) async {
     final ops = await pendingOps(limit: 2000);
     for (final op in ops) {
