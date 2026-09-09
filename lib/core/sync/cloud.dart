@@ -60,10 +60,30 @@ class Cloud {
     return {'url': p.getString(kUrl), 'key': p.getString(kKey)};
   }
 
-  Future<void> saveConfig(String url, String key) async {
+  /// Supabase Project URL biçimi: https://xyz.supabase.co
+  /// (sonunda / yok, ek yol yok, dashboard adresi değil).
+  static String? normalizeSupabaseUrl(String input) {
+    var u = input.trim().replaceAll(RegExp(r'/+$'), '');
+    if (RegExp(r'^https://[a-z0-9-]+\.supabase\.co$').hasMatch(u)) {
+      return u;
+    }
+    return null;
+  }
+
+  static const urlHelp =
+      'URL hatalı görünüyor. Doğrusu şuna benzer: https://xyz.supabase.co '
+      '(sonunda / veya ek yol olmadan, tarayıcıdaki dashboard adresi değil). '
+      'Supabase → Project Settings → Data API → Project URL.';
+
+  /// Hata metni döner (null = kaydedildi).
+  Future<String?> saveConfig(String url, String key) async {
+    final clean = normalizeSupabaseUrl(url);
+    if (clean == null) return urlHelp;
+    if (key.trim().isEmpty) return 'Anon key boş olamaz.';
     final p = await _prefs;
-    await p.setString(kUrl, url.trim());
+    await p.setString(kUrl, clean);
     await p.setString(kKey, key.trim());
+    return null;
   }
 
   /// Açılışta bir kez çağrılır. Yapılandırma yoksa sessizce kapalı kalır.
@@ -73,7 +93,11 @@ class Cloud {
     db.deviceCode = p.getString(kDevice) ?? 'K1';
     final url = p.getString(kUrl);
     final key = p.getString(kKey);
-    if (url == null || url.isEmpty || key == null || key.isEmpty) {
+    if (url == null ||
+        url.isEmpty ||
+        key == null ||
+        key.isEmpty ||
+        normalizeSupabaseUrl(url) == null) {
       _set(const CloudStatus(mode: CloudMode.off));
       return;
     }
@@ -115,7 +139,9 @@ class Cloud {
 
   /// Giriş: önce sign-in, hesap yoksa sign-up dener. Hata metni döner.
   Future<String?> signIn(String email, String password) async {
-    if (_sb == null) return 'Önce Supabase URL + anahtar kaydedin.';
+    if (_sb == null) {
+      return 'Önce Supabase URL + anahtar kaydedin. $urlHelp';
+    }
     try {
       await _sb!.auth.signInWithPassword(
           email: email.trim(), password: password);

@@ -326,9 +326,14 @@ class _CloudCardState extends State<CloudCard> {
                             : () async {
                                 setState(() => _busy = true);
                                 try {
-                                  await Cloud.instance
+                                  final err = await Cloud.instance
                                       .saveConfig(
                                           _url.text, _key.text);
+                                  if (!mounted) return;
+                                  if (err != null) {
+                                    _msg(err, err: true);
+                                    return;
+                                  }
                                   await Cloud.instance
                                       .setDeviceCode(_device.text
                                           .trim()
