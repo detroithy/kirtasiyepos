@@ -338,13 +338,13 @@ class ChartsSection extends StatelessWidget {
               )
             else ...[
               SizedBox(
-                height: 190,
+                height: 200,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
                     PieChart(
                       PieChartData(
-                        centerSpaceRadius: 44,
+                        centerSpaceRadius: 58,
                         sectionsSpace: 3,
                         sections: [
                           for (var i = 0;
@@ -354,23 +354,29 @@ class ChartsSection extends StatelessWidget {
                         ],
                       ),
                     ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('TOPLAM',
-                            style: TextStyle(
-                                fontSize: 10,
-                                color: PosColors.ink2,
-                                letterSpacing: 1)),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(money(total),
-                              style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w800,
-                                  color: PosColors.navy)),
-                        ),
-                      ],
+                    SizedBox(
+                      // Deliğin içine sığmaya zorla: taşma yok.
+                      width: 104,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('TOPLAM',
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  color: PosColors.ink2,
+                                  letterSpacing: 1)),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(money(total),
+                                maxLines: 1,
+                                style: const TextStyle(
+                                    fontSize: 19,
+                                    fontWeight:
+                                        FontWeight.w800,
+                                    color: PosColors.navy)),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -449,10 +455,13 @@ class ChartsSection extends StatelessWidget {
       List<MapEntry<String, double>> entries, double total, int i) {
     final bg = _palette[i % _palette.length];
     final onLight = bg == PosColors.amber;
+    final share = total > 0 ? entries[i].value / total : 0.0;
     return PieChartSectionData(
       value: entries[i].value,
-      title:
-          '%${(entries[i].value / total * 100).toStringAsFixed(0)}',
+      // Minik dilimde (%6 altı) etiket eziliyor — lejantta zaten var:
+      title: share < 0.06
+          ? ''
+          : '%${(share * 100).toStringAsFixed(0)}',
       color: bg,
       radius: 62,
       titleStyle: TextStyle(
