@@ -55,14 +55,17 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     });
   }
 
-  static const _pages = [
-    PosScreen(),
-    ProductsScreen(),
-    StockScreen(),
-    DashboardScreen(),
-    ReportsScreen(),
-    SettingsScreen(),
-  ];
+  /// Görünür sekme active=true alır -> FutureBuilder'lı ekranlar
+  /// sekmeye dönünce veriyi tazeler (POS sepeti gibi state'ler korunur:
+  /// const sayfalar aynı instance ile yaşar).
+  List<Widget> get _pages => [
+        const PosScreen(),
+        const ProductsScreen(),
+        StockScreen(active: _index == 2),
+        DashboardScreen(active: _index == 3),
+        ReportsScreen(active: _index == 4),
+        const SettingsScreen(),
+      ];
 
   @override
   Widget build(BuildContext context) {

@@ -11,7 +11,9 @@ import '../../core/utils/money.dart';
 /// Cari (veresiye) defteri: açık fişler + tahsilat.
 /// Ciro satış gününe yazılmıştır; tahsilat ciroyu iki kez saymaz.
 class CariDefterScreen extends ConsumerStatefulWidget {
-  const CariDefterScreen({super.key});
+  /// Pushtan açılışta true (veri tazelenir).
+  final bool active;
+  const CariDefterScreen({super.key, this.active = true});
 
   @override
   ConsumerState<CariDefterScreen> createState() =>
@@ -19,8 +21,14 @@ class CariDefterScreen extends ConsumerStatefulWidget {
 }
 
 class _CariDefterScreenState
-    extends ConsumerState<CariDefterScreen> {
+    extends ConsumerState<CariDefterScreen> with SyncRefreshMixin {
   void _reload() => setState(() {});
+
+  @override
+  void didUpdateWidget(covariant CariDefterScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !oldWidget.active) _reload();
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -455,4 +455,30 @@ class Cloud {
   }
 
   void _set(CloudStatus s) => cloudStatus.value = s;
+}
+
+/// FutureBuilder'lı ekranlar için otomatik tazeleme:
+/// senkron bitince yeniden sorgular. Sekmeye dönüş tazeliği için
+/// ekran `active` parametresi + didUpdateWidget ile setState yapar.
+mixin SyncRefreshMixin<T extends StatefulWidget> on State<T> {
+  bool _wasSyncing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _wasSyncing = cloudStatus.value.mode == CloudMode.syncing;
+    cloudStatus.addListener(_onCloud);
+  }
+
+  @override
+  void dispose() {
+    cloudStatus.removeListener(_onCloud);
+    super.dispose();
+  }
+
+  void _onCloud() {
+    final syncing = cloudStatus.value.mode == CloudMode.syncing;
+    if (_wasSyncing && !syncing && mounted) setState(() {});
+    _wasSyncing = syncing;
+  }
 }

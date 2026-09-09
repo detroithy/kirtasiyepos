@@ -4,19 +4,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app.dart';
 import '../../core/database/app_db.dart';
+import '../../core/sync/cloud.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 import '../../core/widgets/kpi_card.dart';
-/// Günlük Özet: ciro / KDV / kar / gider KPI kartları + gider girişi.
+
 class DashboardScreen extends ConsumerStatefulWidget {
-  const DashboardScreen({super.key});
+  /// HomeShell sekmeye dönüldüğünde true olur (veri tazelenir).
+  final bool active;
+  const DashboardScreen({super.key, this.active = true});
 
   @override
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+class _DashboardScreenState extends ConsumerState<DashboardScreen>
+    with SyncRefreshMixin {
   DateTime _day = DateTime.now();
+
+  @override
+  void didUpdateWidget(covariant DashboardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !oldWidget.active && mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {

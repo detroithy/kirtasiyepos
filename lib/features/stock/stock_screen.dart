@@ -5,22 +5,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app.dart';
 import '../../core/database/app_db.dart';
+import '../../core/sync/cloud.dart';
 import '../../core/utils/money.dart';
 
 /// Stok merkezi: TÜM ürünler listelenir, giriş/çıkış/sayım yapılır,
 /// kritikler rozetle belli olur, geçmiş ayrı sekmede.
 class StockScreen extends ConsumerStatefulWidget {
-  const StockScreen({super.key});
+  /// HomeShell sekmeye dönüldüğünde true olur (geçmiş tazelenir).
+  final bool active;
+  const StockScreen({super.key, this.active = true});
 
   @override
   ConsumerState<StockScreen> createState() => _StockScreenState();
 }
 
-class _StockScreenState extends ConsumerState<StockScreen> {
+class _StockScreenState extends ConsumerState<StockScreen>
+    with SyncRefreshMixin {
   bool _showHistory = false;
   bool _onlyCritical = false;
   String _query = '';
   final _searchCtrl = TextEditingController();
+
+  @override
+  void didUpdateWidget(covariant StockScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !oldWidget.active && mounted) setState(() {});
+  }
 
   @override
   void dispose() {

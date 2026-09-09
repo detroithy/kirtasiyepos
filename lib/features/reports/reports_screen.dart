@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../app.dart';
 import '../../core/database/app_db.dart';
+import '../../core/sync/cloud.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 import '../../core/widgets/kpi_card.dart';
@@ -14,15 +15,24 @@ import '../../core/widgets/kpi_card.dart';
 /// Mali Raporlar: aralık seçimi, KPI'lar, KDV matris tablosu,
 /// ödeme dağılımı, CSV aktarım.
 class ReportsScreen extends ConsumerStatefulWidget {
-  const ReportsScreen({super.key});
+  /// HomeShell sekmeye dönüldüğünde true olur (veri tazelenir).
+  final bool active;
+  const ReportsScreen({super.key, this.active = true});
 
   @override
   ConsumerState<ReportsScreen> createState() => _ReportsScreenState();
 }
 
-class _ReportsScreenState extends ConsumerState<ReportsScreen> {
+class _ReportsScreenState extends ConsumerState<ReportsScreen>
+    with SyncRefreshMixin {
   DateTime _start = DateTime.now().subtract(const Duration(days: 30));
   DateTime _end = DateTime.now();
+
+  @override
+  void didUpdateWidget(covariant ReportsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !oldWidget.active && mounted) setState(() {});
+  }
 
   Future<void> _pick(bool isStart) async {
     final d = await showDatePicker(
