@@ -1285,6 +1285,9 @@ class AppDb extends _$AppDb {
     String approvalCode = '',
     String fiscalNo = '',
     String posStatus = '',
+    // İade fişlerinde hareket tipi/notu ezilir (orijinal fiş notta).
+    String movementType = 'satis',
+    String? movementNote,
   }) {
     return transaction(() async {
       final count = await (selectOnly(sales)
@@ -1374,21 +1377,21 @@ class AppDb extends _$AppDb {
           await into(stockMovements)
               .insert(StockMovementsCompanion.insert(
             productId: pid,
-            type: 'satis',
+            type: movementType,
             qty: -item.qty.value,
             prevStock: prod.stock,
             newStock: newStock,
-            note: Value(no),
+            note: Value(movementNote ?? no),
             uuid: movUuid,
           ));
           await enqueue(table: 'stock_movements', rowUuid: movUuid, payload: {
             'uuid': movUuid,
             'product_uuid': prod.uuid,
-            'type': 'satis',
+            'type': movementType,
             'qty': -item.qty.value,
             'prev_stock': prod.stock,
             'new_stock': newStock,
-            'note': no,
+            'note': movementNote ?? no,
             'date': DateTime.now().toIso8601String(),
           });
           final updated = await (select(products)
@@ -1670,12 +1673,14 @@ class AppDb extends _$AppDb {
 
   /// Veresiye tahsilatı: paid artar, fiş kuyrukla buluta yayılır.
   /// (Ciro satış gününe yazılmıştır; tahsilat ciroyu iki kez saymaz.)
+  /// Negatif toplamlı (iade) fişlerde paid oynatılmaz.
   Future<void> collectDebt(
       {required int saleId, required double amount}) {
     return transaction(() async {
       final s = await (select(sales)
             ..where((t) => t.id.equals(saleId)))
           .getSingle();
+      if (s.total <= 0 || amount <= 0) return;
       final newPaid = (s.paid + amount).clamp(0.0, s.total);
       await (update(sales)..where((t) => t.id.equals(saleId))).write(
         SalesCompanion(
@@ -1694,17 +1699,58 @@ class AppDb extends _$AppDb {
   }
 
   /// Açık veresiyeler (ödenmemiş cari fişler, yeniden eskiye).
+  /// Negatif toplamlı iade fişleri hariç (onlar alacak değil).
   Future<List<Sale>> openDebts() async {
     final all = await (select(sales)
           ..where((t) => t.paymentType.equals('cari'))
           ..orderBy([(t) => OrderingTerm.desc(t.date)]))
         .get();
-    return all.where((s) => s.paid < s.total).toList();
+    return all.where((s) => s.total > 0 && s.paid < s.total).toList();
   }
 
   Future<double> openDebtsTotal() async {
     final list = await openDebts();
     return list.fold<double>(0.0, (s, r) => s + (r.total - r.paid));
+  }
+
+  // ================= İade =================
+
+  /// Fiş no ile satış bul (iade ekranı).
+  Future<Sale?> findSaleByReceipt(String receiptNo) {
+    return (select(sales)
+          ..where((t) => t.receiptNo.equals(receiptNo.trim())))
+        .getSingleOrNull();
+  }
+
+  /// Fişin satırları.
+  Future<List<SaleItem>> saleItemsFor(int saleId) {
+    return (select(saleItems)..where((t) => t.saleId.equals(saleId)))
+        .get();
+  }
+
+  /// Orijinal fişe karşılık DAHA ÖNCE iade edilen adetler
+  /// (ürün id -> adet). İade hareketlerinin notu orijinal fiş nodur.
+  Future<Map<int, double>> returnedQtyByProduct(String origReceiptNo) async {
+    final rows = await (select(stockMovements)
+          ..where((t) =>
+              t.type.equals('iade') & t.note.equals(origReceiptNo)))
+        .get();
+    final out = <int, double>{};
+    for (final r in rows) {
+      out[r.productId] = (out[r.productId] ?? 0) + r.qty;
+    }
+    return out;
+  }
+
+  /// İade fiş no üret: İADE ön ekli orijinal no (çakışırsa -2, -3...).
+  Future<String> nextReturnReceiptNo(String origReceiptNo) async {
+    var cand = 'İADE-$origReceiptNo';
+    var n = 2;
+    while (await findSaleByReceipt(cand) != null) {
+      cand = 'İADE-$origReceiptNo-$n';
+      n++;
+    }
+    return cand;
   }
 
   /// Günlük özet: ciro, kdv, kar, fiş sayısı.

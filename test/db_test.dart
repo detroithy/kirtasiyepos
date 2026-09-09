@@ -259,4 +259,85 @@ void main() {
     expect(row.discount, 6);
     expect(row.kdvTotal, kdv);
   });
+
+  test('iade: stok döner, eksi fiş, ikinci iade engellenir', () async {
+    final p = (await db.searchProducts('Kurşun Kalem')).single;
+    final stock0 = p.stock;
+    // 2 adet satış:
+    final sale = await db.completeSale(
+      items: [
+        SaleItemsCompanion.insert(
+          saleId: 0,
+          productId: drift.Value(p.id),
+          name: p.name,
+          qty: 2,
+          unitPrice: p.sellPrice,
+          kdvRate: drift.Value(p.kdvRate),
+          kdvAmount: drift.Value(5),
+          buyPriceSnapshot: drift.Value(p.buyPrice),
+          profit: drift.Value(9),
+          uuid: newUuid(),
+          saleUuid: const drift.Value(''),
+        ),
+      ],
+      total: 30,
+      kdvTotal: 5,
+      profitTotal: 9,
+      receiptNo: 'K1-0001',
+    );
+    expect(
+        (await (db.select(db.products)
+                  ..where((t) => t.id.equals(p.id)))
+                .getSingle())
+            .stock,
+        stock0 - 2);
+
+    // 1 adet iade:
+    final items = await db.saleItemsFor(sale.id);
+    final l = items.single;
+    final retNo = await db.nextReturnReceiptNo('K1-0001');
+    expect(retNo, 'İADE-K1-0001');
+    await db.completeSale(
+      items: [
+        SaleItemsCompanion.insert(
+          saleId: 0,
+          productId: drift.Value(p.id),
+          name: l.name,
+          qty: -1,
+          unitPrice: l.unitPrice,
+          kdvRate: drift.Value(l.kdvRate),
+          kdvAmount: drift.Value(-2.5),
+          buyPriceSnapshot: drift.Value(l.buyPriceSnapshot),
+          profit: drift.Value(-4.5),
+          uuid: newUuid(),
+          saleUuid: const drift.Value(''),
+        ),
+      ],
+      total: -15,
+      kdvTotal: -2.5,
+      profitTotal: -4.5,
+      receiptNo: retNo,
+      movementType: 'iade',
+      movementNote: 'K1-0001',
+    );
+    expect(
+        (await (db.select(db.products)
+                  ..where((t) => t.id.equals(p.id)))
+                .getSingle())
+            .stock,
+        stock0 - 1);
+
+    // İade takibi: 1 adet kullanıldı, 1 kaldı:
+    final ret = await db.returnedQtyByProduct('K1-0001');
+    expect(ret[p.id], 1);
+
+    // İkinci iade no çakışmaz:
+    expect(await db.nextReturnReceiptNo('K1-0001'),
+        'İADE-K1-0001-2');
+
+    // Günlük ciro netleşir (30 - 15):
+    final day = await db.daySummary(DateTime.now());
+    expect(day.total, 15);
+    expect(day.receipts, 2);
+  });
 }

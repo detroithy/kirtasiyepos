@@ -16,6 +16,7 @@ import '../pos_device/simulated_device.dart';
 import '../pos_device/tokenx_device.dart';
 import '../products/quick_add.dart';
 import 'cari_defter_screen.dart';
+import 'return_screen.dart';
 import 'pos_print.dart';
 import 'scan_screen.dart';
 
@@ -839,6 +840,15 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       appBar: AppBar(
         title: const Text('KırtasiyePOS • Hızlı Satış'),
         actions: [
+          IconButton(
+            tooltip: 'Satış İadesi',
+            icon: const Icon(Icons.assignment_return),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const ReturnScreen()),
+            ),
+          ),
           IconButton(
             tooltip: 'Cari Defter (veresiye)',
             icon: const Icon(Icons.book),
