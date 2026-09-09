@@ -251,16 +251,25 @@ class _CloudCardState extends State<CloudCard> {
         title: const Text('Bulut Senkron (telefon + PC)'),
         subtitle: ValueListenableBuilder<CloudStatus>(
           valueListenable: cloudStatus,
-          builder: (_, s, child) => Text(
-            switch (s.mode) {
-              CloudMode.off => 'Kapalı — URL + anahtar gerekli',
-              CloudMode.online =>
-                'Çevrimiçi${Cloud.instance.isAuthed ? ' • giriş açık' : ' • giriş gerekli'}',
-              CloudMode.offline => 'Çevrimdışı • ${s.pending} bekliyor',
-              CloudMode.syncing => 'Senkronize ediliyor...',
-              CloudMode.error => 'Hata: ${s.message ?? ''}',
-            },
-          ),
+          builder: (_, s, child) {
+            final authed = Cloud.instance.isAuthed;
+            final email = Cloud.instance.userEmail;
+            return Text(
+              switch (s.mode) {
+                CloudMode.off =>
+                  'Kapalı — URL + anahtar gerekli',
+                CloudMode.online => authed
+                    ? 'Çevrimiçi • $email'
+                    : 'Çevrimiçi • giriş gerekli',
+                CloudMode.offline =>
+                  'Çevrimdışı • ${s.pending} bekliyor',
+                CloudMode.syncing =>
+                  'Senkronize ediliyor...',
+                CloudMode.error =>
+                  'Hata: ${s.message ?? ''}',
+              },
+            );
+          },
         ),
         children: [
           Padding(
@@ -369,7 +378,8 @@ class _CloudCardState extends State<CloudCard> {
                                           _pass.text);
                                   if (!mounted) return;
                                   if (err == null) {
-                                    _msg('Bağlandı, senkron başladı.');
+                                    _msg(
+                                        'Bağlandı: ${Cloud.instance.userEmail ?? ''}');
                                   } else {
                                     _msg('Giriş hatası: $err',
                                         err: true);
@@ -398,6 +408,23 @@ class _CloudCardState extends State<CloudCard> {
                         const Text('Şimdi Senkronize Et'),
                   ),
                 ),
+                if (Cloud.instance.isAuthed)
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        await Cloud.instance.signOut();
+                        _msg('Çıkış yapıldı.');
+                      },
+                      icon: const Icon(Icons.logout,
+                          color: Colors.red),
+                      label: Text(
+                        'Çıkış Yap (${Cloud.instance.userEmail ?? ''})',
+                        style: const TextStyle(
+                            color: Colors.red),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

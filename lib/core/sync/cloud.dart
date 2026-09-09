@@ -44,6 +44,7 @@ class Cloud {
 
   bool get isConfigured => _sb != null;
   bool get isAuthed => _sb?.auth.currentUser != null;
+  String? get userEmail => _sb?.auth.currentUser?.email;
 
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
@@ -109,6 +110,10 @@ class Cloud {
     try {
       _sb = Supabase.instance.client;
     } catch (_) {
+      _sb = null;
+    }
+    final sb = _sb;
+    if (sb == null) {
       _set(const CloudStatus(
           mode: CloudMode.error, message: 'Supabase açılamadı'));
       return;
@@ -117,6 +122,8 @@ class Cloud {
     _connSub = Connectivity()
         .onConnectivityChanged
         .listen((_) => _onConnectivity());
+    // Oturum değişince rozet/kart kendini güncellesin:
+    sb.auth.onAuthStateChange.listen((_) => refreshPending());
     await _onConnectivity(initial: true);
   }
 
@@ -138,6 +145,7 @@ class Cloud {
   }
 
   /// Giriş: önce sign-in, hesap yoksa sign-up dener. Hata metni döner.
+  /// Sign-up e-posta onayı beklerse oturum açılmaz — bunu açıkça söyler.
   Future<String?> signIn(String email, String password) async {
     if (_sb == null) {
       return 'Önce Supabase URL + anahtar kaydedin. $urlHelp';
@@ -145,20 +153,34 @@ class Cloud {
     try {
       await _sb!.auth.signInWithPassword(
           email: email.trim(), password: password);
-      await syncNow();
-      return null;
-    } on AuthException {
+    } on AuthException catch (firstErr) {
       try {
         await _sb!.auth
             .signUp(email: email.trim(), password: password);
-        await syncNow();
-        return null;
       } on AuthException catch (e) {
+        final m = e.message.toLowerCase();
+        if (m.contains('already registered') ||
+            m.contains('already exists') ||
+            m.contains('already been registered')) {
+          return 'Bu e-posta kayıtlı ama giriş olmadı — şifreni kontrol et. '
+              '(Şifreyi unuttuysan Supabase → Authentication → Users → ilgili kullanıcı → Reset password.)';
+        }
         return e.message;
+      } catch (_) {
+        // sign-in hatası varken sign-up da bilinmez şekilde patladıysa
+        // asıl hatayı göster:
+        return firstErr.message;
       }
     } catch (e) {
-      return e.toString();
+      return e.toString().split('\n').first;
     }
+    if (!isAuthed) {
+      return 'Hesap var ama oturum açılamadı: büyük ihtimal e-posta onayı bekleniyor. '
+          'Supabase → Authentication → Users → ilgili kullanıcı → Confirm email yapın '
+          '(veya Authentication → Sign In/Up ayarlarından "Confirm email"i kapatın).';
+    }
+    await syncNow();
+    return null;
   }
 
   Future<void> signOut() async {
