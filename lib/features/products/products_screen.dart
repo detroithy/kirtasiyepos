@@ -318,8 +318,7 @@ class ProductsScreen extends ConsumerWidget {
             FilledButton(
               onPressed: () async {
                 if (name.text.trim().isEmpty) return;
-                double num(String s) =>
-                    double.tryParse(s.replaceAll(',', '.')) ?? 0;
+                double num(String s) => parseTr(s);
                 final comp = ProductsCompanion(
                   name: drift.Value(name.text.trim()),
                   barcode: drift.Value(

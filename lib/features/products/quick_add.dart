@@ -148,9 +148,7 @@ Future<Product?> showQuickAddSheet(
                         const Size.fromHeight(48)),
                 onPressed: () async {
                   if (name.text.trim().isEmpty) return;
-                  double num(String s) =>
-                      double.tryParse(s.replaceAll(',', '.')) ??
-                      0;
+                  double num(String s) => parseTr(s);
                   if (num(sell.text) <= 0) return;
                   try {
                     final created =

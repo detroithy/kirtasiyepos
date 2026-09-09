@@ -430,8 +430,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         fiscalNo: fiscalNo,
         posStatus: posStatus,
       );
-      final paidRaw =
-          double.tryParse(_paidCtrl.text.replaceAll(',', '.')) ?? 0;
+      final paidRaw = parseTr(_paidCtrl.text);
       // Nakit: elden alınan; parçalı: toplam (nakit+kart); cari: 0.
       final paid = salePay == 'nakit'
           ? paidRaw
@@ -516,8 +515,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
               child: const Text('Vazgeç')),
           FilledButton(
             onPressed: () {
-              final cash =
-                  double.tryParse(ctrl.text.replaceAll(',', '.'));
+              final cash = tryParseTr(ctrl.text);
               if (cash == null || cash < 0 || cash > _total) {
                 return;
               }
@@ -594,9 +592,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   child: const Text('Vazgeç')),
               FilledButton(
                 onPressed: () {
-                  final v = double.tryParse(
-                          ctrl.text.replaceAll(',', '.')) ??
-                      0;
+                  final v = parseTr(ctrl.text);
                   setState(() {
                     _discount = v.clamp(0.0, _subtotal);
                     // Parçalı bölünme indirimsiz kaldıysa sıfırla:
@@ -1046,8 +1042,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
   /// Sepet paneli: kendi içinde kayar, asla overflow vermez.
   Widget _cartPanel() {
-    final paid =
-        double.tryParse(_paidCtrl.text.replaceAll(',', '.')) ?? 0;
+    final paid = parseTr(_paidCtrl.text);
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(

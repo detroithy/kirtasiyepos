@@ -179,9 +179,7 @@ class _CariDefterScreenState
               child: const Text('Vazgeç')),
           FilledButton(
             onPressed: () {
-              final a = double.tryParse(
-                      ctrl.text.replaceAll(',', '.')) ??
-                  0;
+              final a = parseTr(ctrl.text);
               if (a <= 0) return;
               Navigator.pop(ctx, true);
               _doCollect(db, s.id, a.clamp(0, kalan));

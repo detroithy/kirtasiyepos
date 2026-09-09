@@ -252,8 +252,7 @@ class _StockScreenState extends ConsumerState<StockScreen>
               child: const Text('Vazgeç')),
           FilledButton(
             onPressed: () async {
-              final q =
-                  double.tryParse(qty.text.replaceAll(',', '.')) ?? -1;
+              final q = parseTr(qty.text, -1);
               if (q < 0) return;
               try {
                 if (type == 'sayim') {

@@ -393,9 +393,7 @@ class _SupplierDetailScreenState
               child: const Text('Vazgeç')),
           FilledButton(
             onPressed: () async {
-              final a = double.tryParse(
-                      amount.text.replaceAll(',', '.')) ??
-                  0;
+              final a = parseTr(amount.text);
               if (a <= 0) return;
               try {
                 await db.insertLedgerEntry(

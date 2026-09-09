@@ -24,3 +24,29 @@ String kdvEtiket(double oran) =>
 /// Stok adedi formatı: 50 -> "50", 2.5 -> "2.5"
 String fmtQty(double v) =>
     v.truncateToDouble() == v ? v.toInt().toString() : v.toString();
+
+/// Türkçe sayı ayrıştırma: "5.000" -> 5000, "1.250,50" -> 1250.50,
+/// "1250,50" -> 1250.50, "1250.50" -> 1250.50. Bozuksa null.
+double? tryParseTr(String input) {
+  var s = input.trim().replaceAll(RegExp(r'\s+'), '');
+  if (s.isEmpty) return null;
+  final hasDot = s.contains('.');
+  final hasComma = s.contains(',');
+  if (hasDot && hasComma) {
+    // TR: nokta binlik, virgül ondalık.
+    s = s.replaceAll('.', '').replaceAll(',', '.');
+  } else if (hasComma) {
+    s = s.replaceAll(',', '.');
+  } else if (hasDot) {
+    // Sadece nokta: binlik mi ondalık mı?
+    if (RegExp(r'^\d{1,3}(\.\d{3})+$').hasMatch(s)) {
+      s = s.replaceAll('.', '');
+    }
+  }
+  if (!RegExp(r'^-?\d+(\.\d+)?$').hasMatch(s)) return null;
+  return double.tryParse(s);
+}
+
+/// Ayrıştırılamazsa varsayılan döner.
+double parseTr(String input, [double fb = 0]) =>
+    tryParseTr(input) ?? fb;
