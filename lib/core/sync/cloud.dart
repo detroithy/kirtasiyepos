@@ -64,7 +64,8 @@ class Cloud {
   /// Supabase Project URL biçimi: https://xyz.supabase.co
   /// (sonunda / yok, ek yol yok, dashboard adresi değil).
   static String? normalizeSupabaseUrl(String input) {
-    var u = input.trim().replaceAll(RegExp(r'/+$'), '');
+    // Mobil klavyeler ilk harfi büyütebilir / boşluk ekleyebilir:
+    var u = input.trim().toLowerCase().replaceAll(RegExp(r'/+$'), '');
     if (RegExp(r'^https://[a-z0-9-]+\.supabase\.co$').hasMatch(u)) {
       return u;
     }

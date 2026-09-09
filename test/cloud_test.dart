@@ -9,6 +9,9 @@ void main() {
     expect(
         Cloud.normalizeSupabaseUrl('  https://xyz.supabase.co/  '),
         'https://xyz.supabase.co');
+    expect(
+        Cloud.normalizeSupabaseUrl('Https://Xyz.Supabase.Co'),
+        'https://xyz.supabase.co');
   });
 
   test('bozuk URL reddedilir', () {
