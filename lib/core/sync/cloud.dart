@@ -642,6 +642,9 @@ class Cloud {
 
     // Değişmezler: imleçten sonrası (10 dk örtüşmeli — saat farkı
     // ve çekiş-sırası yarışında satır kaybolmasın; uuid-idempotent).
+    // KRİTİK: imleç duvar saatine değil, GÖRÜLEN en yeni satıra
+    // ilerler. Boş çekiş imleci kıpırdatmaz, yoksa geride kalan
+    // satırlar bir daha asla sorgulanmaz.
     Future<List> since(String table, String col) async {
       final cur = overlapCutoff(await db.lastPulled(table));
       if (cur == null) {
@@ -654,6 +657,14 @@ class Cloud {
           .order(col);
     }
 
+    DateTime? maxSeen(DateTime? cur, String? iso) {
+      final d = DateTime.tryParse(iso ?? '');
+      if (d == null) return cur;
+      if (cur == null || d.isAfter(cur)) return d;
+      return cur;
+    }
+
+    DateTime? salesMax = await db.lastPulled('sales');
     for (final s in await since('sales', 'date')) {
       final sm = _m(s);
       final items = await sb
@@ -662,18 +673,106 @@ class Cloud {
           .eq('sale_uuid', sm['uuid']);
       await db.applySaleDoc(
           sm, items.map(_m).toList());
+      salesMax = maxSeen(salesMax, sm['date'] as String?);
     }
+    if (salesMax != null) await db.savePulled('sales', salesMax);
+
+    DateTime? movMax = await db.lastPulled('stock_movements');
     for (final mv in await since('stock_movements', 'date')) {
       final mm = _m(mv);
       await db.applyMovement(mm, mm['product_uuid'] as String? ?? '');
+      movMax = maxSeen(movMax, mm['date'] as String?);
     }
-    for (final ex in await since('expenses', 'date')) {
-      await db.applyExpense(_m(ex));
+    if (movMax != null) {
+      await db.savePulled('stock_movements', movMax);
     }
 
-    await db.savePulled('sales', now);
-    await db.savePulled('stock_movements', now);
-    await db.savePulled('expenses', now);
+    DateTime? expMax = await db.lastPulled('expenses');
+    for (final ex in await since('expenses', 'date')) {
+      final em = _m(ex);
+      await db.applyExpense(em);
+      expMax = maxSeen(expMax, em['date'] as String?);
+    }
+    if (expMax != null) await db.savePulled('expenses', expMax);
+
+    // Tam uzlaşı (saatte bir): imlecin gerisinde kalmış straggler
+    // satırlar için 30 günlük uuid karşılaştırma. Eksikler çekilir.
+    await _reconcile(now);
+  }
+
+  /// Straggler avı: bulutta olup yerelde olmayan son 30 günlük
+  /// satırları bulup uygular. Idempotent (uuid korumalı).
+  Future<void> _reconcile(DateTime now) async {
+    final db = _db!, sb = _sb!;
+    final lastFull = await db.lastPulled('full_sync');
+    if (lastFull != null &&
+        now.difference(lastFull) < const Duration(hours: 1)) {
+      return;
+    }
+    final since30 =
+        now.subtract(const Duration(days: 30)).toIso8601String();
+
+    final localSales = await db.saleUuids();
+    final remoteSales = await sb
+        .from('sales')
+        .select('uuid,date')
+        .gt('date', since30)
+        .order('date');
+    for (final r in remoteSales) {
+      final m = _m(r);
+      if (localSales.contains(m['uuid'])) continue;
+      final full = await sb
+          .from('sales')
+          .select()
+          .eq('uuid', m['uuid'])
+          .maybeSingle();
+      if (full == null) continue;
+      final items = await sb
+          .from('sale_items')
+          .select()
+          .eq('sale_uuid', m['uuid']);
+      await db.applySaleDoc(_m(full), items.map(_m).toList());
+    }
+
+    final localMov = await db.movementUuids();
+    final remoteMov = await sb
+        .from('stock_movements')
+        .select('uuid,date,product_uuid')
+        .gt('date', since30)
+        .order('date');
+    for (final r in remoteMov) {
+      final m = _m(r);
+      if (localMov.contains(m['uuid'])) continue;
+      final full = await sb
+          .from('stock_movements')
+          .select()
+          .eq('uuid', m['uuid'])
+          .maybeSingle();
+      if (full == null) continue;
+      final fm = _m(full);
+      await db.applyMovement(
+          fm, fm['product_uuid'] as String? ?? '');
+    }
+
+    final localExp = await db.expenseUuids();
+    final remoteExp = await sb
+        .from('expenses')
+        .select('uuid,date')
+        .gt('date', since30)
+        .order('date');
+    for (final r in remoteExp) {
+      final m = _m(r);
+      if (localExp.contains(m['uuid'])) continue;
+      final full = await sb
+          .from('expenses')
+          .select()
+          .eq('uuid', m['uuid'])
+          .maybeSingle();
+      if (full == null) continue;
+      await db.applyExpense(_m(full));
+    }
+
+    await db.savePulled('full_sync', now);
   }
 
   // ================= REALTIME =================

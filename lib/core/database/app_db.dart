@@ -1064,6 +1064,25 @@ class AppDb extends _$AppDb {
         .getSingleOrNull();
   }
 
+  /// Uzlaşı için hafif uuid kümeleri (tam satır çekmeden).
+  Future<Set<String>> saleUuids() async {
+    final rows = await (selectOnly(sales)..addColumns([sales.uuid])).get();
+    return {for (final r in rows) r.read(sales.uuid)!};
+  }
+
+  Future<Set<String>> movementUuids() async {
+    final rows =
+        await (selectOnly(stockMovements)..addColumns([stockMovements.uuid]))
+            .get();
+    return {for (final r in rows) r.read(stockMovements.uuid)!};
+  }
+
+  Future<Set<String>> expenseUuids() async {
+    final rows =
+        await (selectOnly(expenses)..addColumns([expenses.uuid])).get();
+    return {for (final r in rows) r.read(expenses.uuid)!};
+  }
+
   // ================= Sorgular =================
 
   SimpleSelectStatement<Products, Product> _liveProducts() {

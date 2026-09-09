@@ -197,4 +197,30 @@ void main() {
     expect(all.length, 3); // satır durur, bayrak değişir
     expect(await db.pendingCount(), greaterThan(0));
   });
+
+  test('hareket iki kez uygulanırsa stok bir kez düşer (idempotent)',
+      () async {
+    final p = (await db.searchProducts('Kurşun Kalem')).single;
+    final m = {
+      'uuid': newUuid(),
+      'type': 'satis',
+      'qty': -2.0,
+      'prev_stock': p.stock,
+      'new_stock': p.stock - 2,
+      'note': 'uzak fiş',
+      'date': DateTime.now().toIso8601String(),
+    };
+    await db.applyMovement(m, p.uuid);
+    final s1 = await (db.select(db.products)
+          ..where((t) => t.id.equals(p.id)))
+        .getSingle();
+    expect(s1.stock, p.stock - 2);
+    await db.applyMovement(m, p.uuid); // örtüşmeli çekiş tekrarı
+    final s2 = await (db.select(db.products)
+          ..where((t) => t.id.equals(p.id)))
+        .getSingle();
+    expect(s2.stock, s1.stock);
+    final movs = await db.select(db.stockMovements).get();
+    expect(movs.length, 1);
+  });
 }
