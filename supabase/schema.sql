@@ -147,3 +147,26 @@ alter table sales add column if not exists card_amount double precision not null
 alter table sales add column if not exists customer text not null default '';
 alter table sales add column if not exists paid double precision not null default 0;
 alter table sales add column if not exists updated_at timestamptz not null default now();
+
+-- ============================================================
+-- v4 eklentisi (tedarikçi defteri)
+-- ============================================================
+create table if not exists supplier_ledger (
+  uuid text primary key,
+  supplier_uuid text not null references suppliers(uuid) on delete cascade,
+  date timestamptz not null default now(),
+  kind text not null,
+  amount double precision not null,
+  note text,
+  updated_at timestamptz not null default now(),
+  origin_device text not null default 'K1'
+);
+create index if not exists ledger_supplier_idx on supplier_ledger(supplier_uuid);
+create index if not exists ledger_date_idx on supplier_ledger(date);
+
+alter table supplier_ledger enable row level security;
+drop policy if exists "auth_all" on supplier_ledger;
+create policy "auth_all" on supplier_ledger
+  for all to authenticated using (true) with check (true);
+
+alter publication supabase_realtime add table supplier_ledger;

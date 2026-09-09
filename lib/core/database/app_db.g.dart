@@ -4773,6 +4773,550 @@ class SyncStateCompanion extends UpdateCompanion<PullCursor> {
   }
 }
 
+class $SupplierLedgerTable extends SupplierLedger
+    with TableInfo<$SupplierLedgerTable, LedgerEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SupplierLedgerTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _supplierIdMeta = const VerificationMeta(
+    'supplierId',
+  );
+  @override
+  late final GeneratedColumn<int> supplierId = GeneratedColumn<int>(
+    'supplier_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES suppliers (id)',
+    ),
+  );
+  static const VerificationMeta _dateMeta = const VerificationMeta('date');
+  @override
+  late final GeneratedColumn<DateTime> date = GeneratedColumn<DateTime>(
+    'date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
+  @override
+  late final GeneratedColumn<double> amount = GeneratedColumn<double>(
+    'amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _uuidMeta = const VerificationMeta('uuid');
+  @override
+  late final GeneratedColumn<String> uuid = GeneratedColumn<String>(
+    'uuid',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _originDeviceMeta = const VerificationMeta(
+    'originDevice',
+  );
+  @override
+  late final GeneratedColumn<String> originDevice = GeneratedColumn<String>(
+    'origin_device',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('K1'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    supplierId,
+    date,
+    kind,
+    amount,
+    note,
+    updatedAt,
+    uuid,
+    originDevice,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'supplier_ledger';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LedgerEntry> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('supplier_id')) {
+      context.handle(
+        _supplierIdMeta,
+        supplierId.isAcceptableOrUnknown(data['supplier_id']!, _supplierIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_supplierIdMeta);
+    }
+    if (data.containsKey('date')) {
+      context.handle(
+        _dateMeta,
+        date.isAcceptableOrUnknown(data['date']!, _dateMeta),
+      );
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('amount')) {
+      context.handle(
+        _amountMeta,
+        amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_amountMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('uuid')) {
+      context.handle(
+        _uuidMeta,
+        uuid.isAcceptableOrUnknown(data['uuid']!, _uuidMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_uuidMeta);
+    }
+    if (data.containsKey('origin_device')) {
+      context.handle(
+        _originDeviceMeta,
+        originDevice.isAcceptableOrUnknown(
+          data['origin_device']!,
+          _originDeviceMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LedgerEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LedgerEntry(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      supplierId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}supplier_id'],
+      )!,
+      date: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}date'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      amount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}amount'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      uuid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uuid'],
+      )!,
+      originDevice: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}origin_device'],
+      )!,
+    );
+  }
+
+  @override
+  $SupplierLedgerTable createAlias(String alias) {
+    return $SupplierLedgerTable(attachedDatabase, alias);
+  }
+}
+
+class LedgerEntry extends DataClass implements Insertable<LedgerEntry> {
+  final int id;
+  final int supplierId;
+  final DateTime date;
+  final String kind;
+  final double amount;
+  final String? note;
+  final DateTime updatedAt;
+  final String uuid;
+  final String originDevice;
+  const LedgerEntry({
+    required this.id,
+    required this.supplierId,
+    required this.date,
+    required this.kind,
+    required this.amount,
+    this.note,
+    required this.updatedAt,
+    required this.uuid,
+    required this.originDevice,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['supplier_id'] = Variable<int>(supplierId);
+    map['date'] = Variable<DateTime>(date);
+    map['kind'] = Variable<String>(kind);
+    map['amount'] = Variable<double>(amount);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['uuid'] = Variable<String>(uuid);
+    map['origin_device'] = Variable<String>(originDevice);
+    return map;
+  }
+
+  SupplierLedgerCompanion toCompanion(bool nullToAbsent) {
+    return SupplierLedgerCompanion(
+      id: Value(id),
+      supplierId: Value(supplierId),
+      date: Value(date),
+      kind: Value(kind),
+      amount: Value(amount),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      updatedAt: Value(updatedAt),
+      uuid: Value(uuid),
+      originDevice: Value(originDevice),
+    );
+  }
+
+  factory LedgerEntry.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LedgerEntry(
+      id: serializer.fromJson<int>(json['id']),
+      supplierId: serializer.fromJson<int>(json['supplierId']),
+      date: serializer.fromJson<DateTime>(json['date']),
+      kind: serializer.fromJson<String>(json['kind']),
+      amount: serializer.fromJson<double>(json['amount']),
+      note: serializer.fromJson<String?>(json['note']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      uuid: serializer.fromJson<String>(json['uuid']),
+      originDevice: serializer.fromJson<String>(json['originDevice']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'supplierId': serializer.toJson<int>(supplierId),
+      'date': serializer.toJson<DateTime>(date),
+      'kind': serializer.toJson<String>(kind),
+      'amount': serializer.toJson<double>(amount),
+      'note': serializer.toJson<String?>(note),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'uuid': serializer.toJson<String>(uuid),
+      'originDevice': serializer.toJson<String>(originDevice),
+    };
+  }
+
+  LedgerEntry copyWith({
+    int? id,
+    int? supplierId,
+    DateTime? date,
+    String? kind,
+    double? amount,
+    Value<String?> note = const Value.absent(),
+    DateTime? updatedAt,
+    String? uuid,
+    String? originDevice,
+  }) => LedgerEntry(
+    id: id ?? this.id,
+    supplierId: supplierId ?? this.supplierId,
+    date: date ?? this.date,
+    kind: kind ?? this.kind,
+    amount: amount ?? this.amount,
+    note: note.present ? note.value : this.note,
+    updatedAt: updatedAt ?? this.updatedAt,
+    uuid: uuid ?? this.uuid,
+    originDevice: originDevice ?? this.originDevice,
+  );
+  LedgerEntry copyWithCompanion(SupplierLedgerCompanion data) {
+    return LedgerEntry(
+      id: data.id.present ? data.id.value : this.id,
+      supplierId: data.supplierId.present
+          ? data.supplierId.value
+          : this.supplierId,
+      date: data.date.present ? data.date.value : this.date,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      amount: data.amount.present ? data.amount.value : this.amount,
+      note: data.note.present ? data.note.value : this.note,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      uuid: data.uuid.present ? data.uuid.value : this.uuid,
+      originDevice: data.originDevice.present
+          ? data.originDevice.value
+          : this.originDevice,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LedgerEntry(')
+          ..write('id: $id, ')
+          ..write('supplierId: $supplierId, ')
+          ..write('date: $date, ')
+          ..write('kind: $kind, ')
+          ..write('amount: $amount, ')
+          ..write('note: $note, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('uuid: $uuid, ')
+          ..write('originDevice: $originDevice')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    supplierId,
+    date,
+    kind,
+    amount,
+    note,
+    updatedAt,
+    uuid,
+    originDevice,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LedgerEntry &&
+          other.id == this.id &&
+          other.supplierId == this.supplierId &&
+          other.date == this.date &&
+          other.kind == this.kind &&
+          other.amount == this.amount &&
+          other.note == this.note &&
+          other.updatedAt == this.updatedAt &&
+          other.uuid == this.uuid &&
+          other.originDevice == this.originDevice);
+}
+
+class SupplierLedgerCompanion extends UpdateCompanion<LedgerEntry> {
+  final Value<int> id;
+  final Value<int> supplierId;
+  final Value<DateTime> date;
+  final Value<String> kind;
+  final Value<double> amount;
+  final Value<String?> note;
+  final Value<DateTime> updatedAt;
+  final Value<String> uuid;
+  final Value<String> originDevice;
+  const SupplierLedgerCompanion({
+    this.id = const Value.absent(),
+    this.supplierId = const Value.absent(),
+    this.date = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.amount = const Value.absent(),
+    this.note = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.uuid = const Value.absent(),
+    this.originDevice = const Value.absent(),
+  });
+  SupplierLedgerCompanion.insert({
+    this.id = const Value.absent(),
+    required int supplierId,
+    this.date = const Value.absent(),
+    required String kind,
+    required double amount,
+    this.note = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    required String uuid,
+    this.originDevice = const Value.absent(),
+  }) : supplierId = Value(supplierId),
+       kind = Value(kind),
+       amount = Value(amount),
+       uuid = Value(uuid);
+  static Insertable<LedgerEntry> custom({
+    Expression<int>? id,
+    Expression<int>? supplierId,
+    Expression<DateTime>? date,
+    Expression<String>? kind,
+    Expression<double>? amount,
+    Expression<String>? note,
+    Expression<DateTime>? updatedAt,
+    Expression<String>? uuid,
+    Expression<String>? originDevice,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (supplierId != null) 'supplier_id': supplierId,
+      if (date != null) 'date': date,
+      if (kind != null) 'kind': kind,
+      if (amount != null) 'amount': amount,
+      if (note != null) 'note': note,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (uuid != null) 'uuid': uuid,
+      if (originDevice != null) 'origin_device': originDevice,
+    });
+  }
+
+  SupplierLedgerCompanion copyWith({
+    Value<int>? id,
+    Value<int>? supplierId,
+    Value<DateTime>? date,
+    Value<String>? kind,
+    Value<double>? amount,
+    Value<String?>? note,
+    Value<DateTime>? updatedAt,
+    Value<String>? uuid,
+    Value<String>? originDevice,
+  }) {
+    return SupplierLedgerCompanion(
+      id: id ?? this.id,
+      supplierId: supplierId ?? this.supplierId,
+      date: date ?? this.date,
+      kind: kind ?? this.kind,
+      amount: amount ?? this.amount,
+      note: note ?? this.note,
+      updatedAt: updatedAt ?? this.updatedAt,
+      uuid: uuid ?? this.uuid,
+      originDevice: originDevice ?? this.originDevice,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (supplierId.present) {
+      map['supplier_id'] = Variable<int>(supplierId.value);
+    }
+    if (date.present) {
+      map['date'] = Variable<DateTime>(date.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (amount.present) {
+      map['amount'] = Variable<double>(amount.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (uuid.present) {
+      map['uuid'] = Variable<String>(uuid.value);
+    }
+    if (originDevice.present) {
+      map['origin_device'] = Variable<String>(originDevice.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SupplierLedgerCompanion(')
+          ..write('id: $id, ')
+          ..write('supplierId: $supplierId, ')
+          ..write('date: $date, ')
+          ..write('kind: $kind, ')
+          ..write('amount: $amount, ')
+          ..write('note: $note, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('uuid: $uuid, ')
+          ..write('originDevice: $originDevice')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDb extends GeneratedDatabase {
   _$AppDb(QueryExecutor e) : super(e);
   $AppDbManager get managers => $AppDbManager(this);
@@ -4785,6 +5329,7 @@ abstract class _$AppDb extends GeneratedDatabase {
   late final $ExpensesTable expenses = $ExpensesTable(this);
   late final $SyncQueueTable syncQueue = $SyncQueueTable(this);
   late final $SyncStateTable syncState = $SyncStateTable(this);
+  late final $SupplierLedgerTable supplierLedger = $SupplierLedgerTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4799,6 +5344,7 @@ abstract class _$AppDb extends GeneratedDatabase {
     expenses,
     syncQueue,
     syncState,
+    supplierLedger,
   ];
 }
 
@@ -5114,6 +5660,24 @@ final class $$SuppliersTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$SupplierLedgerTable, List<LedgerEntry>>
+  _supplierLedgerRefsTable(_$AppDb db) => MultiTypedResultKey.fromTable(
+    db.supplierLedger,
+    aliasName: 'suppliers__id__supplier_ledger__supplier_id',
+  );
+
+  $$SupplierLedgerTableProcessedTableManager get supplierLedgerRefs {
+    final manager = $$SupplierLedgerTableTableManager(
+      $_db,
+      $_db.supplierLedger,
+    ).filter((f) => f.supplierId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_supplierLedgerRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$SuppliersTableFilterComposer
@@ -5166,6 +5730,31 @@ class $$SuppliersTableFilterComposer
           }) => $$ProductsTableFilterComposer(
             $db: $db,
             $table: $db.products,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> supplierLedgerRefs(
+    Expression<bool> Function($$SupplierLedgerTableFilterComposer f) f,
+  ) {
+    final $$SupplierLedgerTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.supplierLedger,
+      getReferencedColumn: (t) => t.supplierId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SupplierLedgerTableFilterComposer(
+            $db: $db,
+            $table: $db.supplierLedger,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -5259,6 +5848,31 @@ class $$SuppliersTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> supplierLedgerRefs<T extends Object>(
+    Expression<T> Function($$SupplierLedgerTableAnnotationComposer a) f,
+  ) {
+    final $$SupplierLedgerTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.supplierLedger,
+      getReferencedColumn: (t) => t.supplierId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SupplierLedgerTableAnnotationComposer(
+            $db: $db,
+            $table: $db.supplierLedger,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$SuppliersTableTableManager
@@ -5274,7 +5888,7 @@ class $$SuppliersTableTableManager
           $$SuppliersTableUpdateCompanionBuilder,
           (Supplier, $$SuppliersTableReferences),
           Supplier,
-          PrefetchHooks Function({bool productsRefs})
+          PrefetchHooks Function({bool productsRefs, bool supplierLedgerRefs})
         > {
   $$SuppliersTableTableManager(_$AppDb db, $SuppliersTable table)
     : super(
@@ -5323,36 +5937,63 @@ class $$SuppliersTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({productsRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [if (productsRefs) db.products],
-              addJoins: null,
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (productsRefs)
-                    await $_getPrefetchedData<
-                      Supplier,
-                      $SuppliersTable,
-                      Product
-                    >(
-                      currentTable: table,
-                      referencedTable: $$SuppliersTableReferences
-                          ._productsRefsTable(db),
-                      managerFromTypedResult: (p0) =>
-                          $$SuppliersTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).productsRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.supplierId == item.id),
-                      typedResults: items,
-                    ),
-                ];
+          prefetchHooksCallback:
+              ({productsRefs = false, supplierLedgerRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (productsRefs) db.products,
+                    if (supplierLedgerRefs) db.supplierLedger,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (productsRefs)
+                        await $_getPrefetchedData<
+                          Supplier,
+                          $SuppliersTable,
+                          Product
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SuppliersTableReferences
+                              ._productsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SuppliersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).productsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.supplierId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (supplierLedgerRefs)
+                        await $_getPrefetchedData<
+                          Supplier,
+                          $SuppliersTable,
+                          LedgerEntry
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SuppliersTableReferences
+                              ._supplierLedgerRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SuppliersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).supplierLedgerRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.supplierId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -5369,7 +6010,7 @@ typedef $$SuppliersTableProcessedTableManager =
       $$SuppliersTableUpdateCompanionBuilder,
       (Supplier, $$SuppliersTableReferences),
       Supplier,
-      PrefetchHooks Function({bool productsRefs})
+      PrefetchHooks Function({bool productsRefs, bool supplierLedgerRefs})
     >;
 typedef $$ProductsTableCreateCompanionBuilder = ProductsCompanion Function({
   Value<int> id,
@@ -8220,6 +8861,397 @@ typedef $$SyncStateTableProcessedTableManager =
       PullCursor,
       PrefetchHooks Function()
     >;
+typedef $$SupplierLedgerTableCreateCompanionBuilder =
+    SupplierLedgerCompanion Function({
+      Value<int> id,
+      required int supplierId,
+      Value<DateTime> date,
+      required String kind,
+      required double amount,
+      Value<String?> note,
+      Value<DateTime> updatedAt,
+      required String uuid,
+      Value<String> originDevice,
+    });
+typedef $$SupplierLedgerTableUpdateCompanionBuilder =
+    SupplierLedgerCompanion Function({
+      Value<int> id,
+      Value<int> supplierId,
+      Value<DateTime> date,
+      Value<String> kind,
+      Value<double> amount,
+      Value<String?> note,
+      Value<DateTime> updatedAt,
+      Value<String> uuid,
+      Value<String> originDevice,
+    });
+
+final class $$SupplierLedgerTableReferences
+    extends BaseReferences<_$AppDb, $SupplierLedgerTable, LedgerEntry> {
+  $$SupplierLedgerTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $SuppliersTable _supplierIdTable(_$AppDb db) =>
+      db.suppliers.createAlias('supplier_ledger__supplier_id__suppliers__id');
+
+  $$SuppliersTableProcessedTableManager get supplierId {
+    final $_column = $_itemColumn<int>('supplier_id')!;
+
+    final manager = $$SuppliersTableTableManager(
+      $_db,
+      $_db.suppliers,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_supplierIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SupplierLedgerTableFilterComposer
+    extends Composer<_$AppDb, $SupplierLedgerTable> {
+  $$SupplierLedgerTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uuid => $composableBuilder(
+    column: $table.uuid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get originDevice => $composableBuilder(
+    column: $table.originDevice,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$SuppliersTableFilterComposer get supplierId {
+    final $$SuppliersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.supplierId,
+      referencedTable: $db.suppliers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SuppliersTableFilterComposer(
+            $db: $db,
+            $table: $db.suppliers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SupplierLedgerTableOrderingComposer
+    extends Composer<_$AppDb, $SupplierLedgerTable> {
+  $$SupplierLedgerTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get uuid => $composableBuilder(
+    column: $table.uuid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get originDevice => $composableBuilder(
+    column: $table.originDevice,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$SuppliersTableOrderingComposer get supplierId {
+    final $$SuppliersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.supplierId,
+      referencedTable: $db.suppliers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SuppliersTableOrderingComposer(
+            $db: $db,
+            $table: $db.suppliers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SupplierLedgerTableAnnotationComposer
+    extends Composer<_$AppDb, $SupplierLedgerTable> {
+  $$SupplierLedgerTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get date =>
+      $composableBuilder(column: $table.date, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<double> get amount =>
+      $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get uuid =>
+      $composableBuilder(column: $table.uuid, builder: (column) => column);
+
+  GeneratedColumn<String> get originDevice => $composableBuilder(
+    column: $table.originDevice,
+    builder: (column) => column,
+  );
+
+  $$SuppliersTableAnnotationComposer get supplierId {
+    final $$SuppliersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.supplierId,
+      referencedTable: $db.suppliers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SuppliersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.suppliers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SupplierLedgerTableTableManager
+    extends
+        RootTableManager<
+          _$AppDb,
+          $SupplierLedgerTable,
+          LedgerEntry,
+          $$SupplierLedgerTableFilterComposer,
+          $$SupplierLedgerTableOrderingComposer,
+          $$SupplierLedgerTableAnnotationComposer,
+          $$SupplierLedgerTableCreateCompanionBuilder,
+          $$SupplierLedgerTableUpdateCompanionBuilder,
+          (LedgerEntry, $$SupplierLedgerTableReferences),
+          LedgerEntry,
+          PrefetchHooks Function({bool supplierId})
+        > {
+  $$SupplierLedgerTableTableManager(_$AppDb db, $SupplierLedgerTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SupplierLedgerTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SupplierLedgerTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SupplierLedgerTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> supplierId = const Value.absent(),
+                Value<DateTime> date = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<double> amount = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> uuid = const Value.absent(),
+                Value<String> originDevice = const Value.absent(),
+              }) => SupplierLedgerCompanion(
+                id: id,
+                supplierId: supplierId,
+                date: date,
+                kind: kind,
+                amount: amount,
+                note: note,
+                updatedAt: updatedAt,
+                uuid: uuid,
+                originDevice: originDevice,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int supplierId,
+                Value<DateTime> date = const Value.absent(),
+                required String kind,
+                required double amount,
+                Value<String?> note = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                required String uuid,
+                Value<String> originDevice = const Value.absent(),
+              }) => SupplierLedgerCompanion.insert(
+                id: id,
+                supplierId: supplierId,
+                date: date,
+                kind: kind,
+                amount: amount,
+                note: note,
+                updatedAt: updatedAt,
+                uuid: uuid,
+                originDevice: originDevice,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SupplierLedgerTable, LedgerEntry>(table),
+                  $$SupplierLedgerTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({supplierId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (supplierId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.supplierId,
+                        referencedTable: $$SupplierLedgerTableReferences
+                            ._supplierIdTable(db),
+                        referencedColumn: $$SupplierLedgerTableReferences
+                            ._supplierIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SupplierLedgerTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDb,
+      $SupplierLedgerTable,
+      LedgerEntry,
+      $$SupplierLedgerTableFilterComposer,
+      $$SupplierLedgerTableOrderingComposer,
+      $$SupplierLedgerTableAnnotationComposer,
+      $$SupplierLedgerTableCreateCompanionBuilder,
+      $$SupplierLedgerTableUpdateCompanionBuilder,
+      (LedgerEntry, $$SupplierLedgerTableReferences),
+      LedgerEntry,
+      PrefetchHooks Function({bool supplierId})
+    >;
 
 class $AppDbManager {
   final _$AppDb _db;
@@ -8242,4 +9274,6 @@ class $AppDbManager {
       $$SyncQueueTableTableManager(_db, _db.syncQueue);
   $$SyncStateTableTableManager get syncState =>
       $$SyncStateTableTableManager(_db, _db.syncState);
+  $$SupplierLedgerTableTableManager get supplierLedger =>
+      $$SupplierLedgerTableTableManager(_db, _db.supplierLedger);
 }

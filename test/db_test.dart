@@ -223,4 +223,40 @@ void main() {
     final movs = await db.select(db.stockMovements).get();
     expect(movs.length, 1);
   });
+
+  test('indirim toplam/KDV/karı orantılı küçültür', () async {
+    final p = (await db.searchProducts('Kurşun Kalem')).single;
+    // 2 adet x 15 = 30 ara toplam, 6 indirim -> 24, faktör 0.8
+    const qty = 2.0;
+    const f = 0.8;
+    final kdv = kdvTutar(p.sellPrice, p.kdvRate) * qty * f;
+    final kar = satirKar(p.sellPrice, p.buyPrice, p.kdvRate, qty) * f;
+    final r = await db.completeSale(
+      items: [
+        SaleItemsCompanion.insert(
+          saleId: 0,
+          productId: drift.Value(p.id),
+          name: p.name,
+          qty: qty,
+          unitPrice: p.sellPrice,
+          kdvRate: drift.Value(p.kdvRate),
+          kdvAmount: drift.Value(kdv),
+          buyPriceSnapshot: drift.Value(p.buyPrice),
+          profit: drift.Value(kar),
+          uuid: newUuid(),
+          saleUuid: const drift.Value(''),
+        ),
+      ],
+      total: 24,
+      kdvTotal: kdv,
+      profitTotal: kar,
+      discount: 6,
+    );
+    final row = await (db.select(db.sales)
+          ..where((t) => t.id.equals(r.id)))
+        .getSingle();
+    expect(row.total, 24);
+    expect(row.discount, 6);
+    expect(row.kdvTotal, kdv);
+  });
 }

@@ -161,6 +161,23 @@ class SyncState extends Table {
   Set<Column> get primaryKey => {entity};
 }
 
+/// Tedarikçi hesap defteri: mal alımı borç artırır, ödeme azaltır.
+/// DEĞİŞMEZ kayıtlar (düzeltme ters kayıtla yapılır).
+@DataClassName('LedgerEntry')
+class SupplierLedger extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get supplierId => integer().references(Suppliers, #id)();
+  DateTimeColumn get date => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get kind => text()(); // alim, odeme
+  RealColumn get amount => real()();
+  TextColumn get note => text().nullable()();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  TextColumn get uuid => text().unique()();
+  TextColumn get originDevice =>
+      text().withDefault(const Constant('K1'))();
+}
+
 @DriftDatabase(
   tables: [
     Categories,
@@ -172,6 +189,7 @@ class SyncState extends Table {
     Expenses,
     SyncQueue,
     SyncState,
+    SupplierLedger,
   ],
 )
 class AppDb extends _$AppDb {
@@ -184,7 +202,7 @@ class AppDb extends _$AppDb {
   String deviceCode = 'K1';
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -255,6 +273,10 @@ class AppDb extends _$AppDb {
                 'UPDATE sales SET paid = total, card_amount = total, updated_at = date WHERE payment_type = \'kart\'');
             await customStatement(
                 'UPDATE sales SET updated_at = date WHERE updated_at = 0');
+          }
+          if (from < 4) {
+            // Yeni tablo: CREATE TABLE serbest.
+            await m.createTable(supplierLedger);
           }
         },
       );
@@ -523,6 +545,19 @@ class AppDb extends _$AppDb {
             payload: expensePayload(e));
         n++;
       }
+      for (final l in await select(supplierLedger).get()) {
+        final sup = await (select(suppliers)
+              ..where((t) => t.id.equals(l.supplierId)))
+            .getSingleOrNull();
+        if (sup == null) continue;
+        final payload = ledgerPayload(l);
+        payload['supplier_uuid'] = sup.uuid;
+        await enqueue(
+            table: 'supplier_ledger',
+            rowUuid: l.uuid,
+            payload: payload);
+        n++;
+      }
       return n;
     });
   }
@@ -596,6 +631,14 @@ class AppDb extends _$AppDb {
           ..where((t) => t.uuid.equals(uuid)))
         .getSingleOrNull();
     if (local == null) {
+      // Aynı adlı satır varsa uuid'yi benimse (çift tedarikçi önlenir):
+      final sameName = await (select(suppliers)
+            ..where((t) => t.name.equals(m['name'] as String? ?? '')))
+          .getSingleOrNull();
+      if (sameName != null) {
+        await adoptSupplierUuid(sameName.uuid, uuid);
+        return;
+      }
       await into(suppliers).insert(SuppliersCompanion.insert(
         name: m['name'] as String,
         phone: Value(m['phone'] as String?),
@@ -610,6 +653,66 @@ class AppDb extends _$AppDb {
         phone: Value(m['phone'] as String?),
         updatedAt: Value(remoteUpdated),
       ));
+    }
+  }
+
+  /// Tedarikçi uuid benimsetme: ürünler + defter yeni kimliğe taşınır,
+  /// bekleyen payloadlar yenilenir, taze durum kuyruğa kurulur.
+  Future<void> adoptSupplierUuid(String oldUuid, String newUuid) {
+    return transaction(() async {
+      final oldRow = await (select(suppliers)
+            ..where((t) => t.uuid.equals(oldUuid)))
+          .getSingleOrNull();
+      if (oldRow == null) return;
+      final clash = await (select(suppliers)
+            ..where((t) => t.uuid.equals(newUuid)))
+          .getSingleOrNull();
+      if (clash != null && clash.id != oldRow.id) {
+        await (update(products)
+              ..where((t) => t.supplierId.equals(clash.id)))
+            .write(ProductsCompanion(supplierId: Value(oldRow.id)));
+        await (update(supplierLedger)
+              ..where((t) => t.supplierId.equals(clash.id)))
+            .write(SupplierLedgerCompanion(supplierId: Value(oldRow.id)));
+        await (delete(suppliers)
+              ..where((t) => t.id.equals(clash.id)))
+            .go();
+      }
+      await (update(suppliers)
+            ..where((t) => t.id.equals(oldRow.id)))
+          .write(SuppliersCompanion(
+        uuid: Value(newUuid),
+        updatedAt: Value(DateTime.now()),
+      ));
+      await rewriteSupplierUuid(oldUuid, newUuid);
+      final fresh = await (select(suppliers)
+            ..where((t) => t.id.equals(oldRow.id)))
+          .getSingle();
+      await enqueue(
+          table: 'suppliers',
+          rowUuid: newUuid,
+          payload: supplierPayload(fresh));
+    });
+  }
+
+  /// Bekleyen ürün/defter payloadlarındaki eski supplier_uuid'yi yeniler,
+  /// eski uuid'li tedarikçi kuyruk satırlarını düşürür.
+  Future<void> rewriteSupplierUuid(String oldUuid, String newUuid) async {
+    final ops = await pendingOps(limit: 2000);
+    for (final op in ops) {
+      if (op.entity == 'suppliers' && op.rowUuid == oldUuid) {
+        await (delete(syncQueue)..where((t) => t.id.equals(op.id))).go();
+        continue;
+      }
+      if (op.entity != 'products' && op.entity != 'supplier_ledger') {
+        continue;
+      }
+      final map = jsonDecode(op.payload) as Map<String, dynamic>;
+      if (map['supplier_uuid'] == oldUuid) {
+        map['supplier_uuid'] = newUuid;
+        await (update(syncQueue)..where((t) => t.id.equals(op.id)))
+            .write(SyncQueueCompanion(payload: Value(jsonEncode(map))));
+      }
     }
   }
 
@@ -1376,6 +1479,163 @@ class AppDb extends _$AppDb {
           rowUuid: row.uuid,
           payload: expensePayload(row));
     });
+  }
+
+  // ================= Tedarikçiler + defter =================
+
+  Future<List<Supplier>> allSuppliers() {
+    return (select(suppliers)
+          ..orderBy([(t) => OrderingTerm(expression: t.name)]))
+        .get();
+  }
+
+  /// Yeni tedarikçi (uuid + kuyruk dahil).
+  Future<Supplier> insertSupplier(
+      {required String name, String? phone}) {
+    return transaction(() async {
+      final id = await into(suppliers).insert(SuppliersCompanion.insert(
+        name: name,
+        phone: Value(phone),
+        uuid: newUuid(),
+        updatedAt: Value(DateTime.now()),
+      ));
+      final row = await (select(suppliers)
+            ..where((t) => t.id.equals(id)))
+          .getSingle();
+      await enqueue(
+          table: 'suppliers',
+          rowUuid: row.uuid,
+          payload: supplierPayload(row));
+      return row;
+    });
+  }
+
+  Future<void> updateSupplier(int id,
+      {required String name, String? phone}) {
+    return transaction(() async {
+      await (update(suppliers)..where((t) => t.id.equals(id))).write(
+        SuppliersCompanion(
+          name: Value(name),
+          phone: Value(phone),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      final row = await (select(suppliers)
+            ..where((t) => t.id.equals(id)))
+          .getSingle();
+      await enqueue(
+          table: 'suppliers',
+          rowUuid: row.uuid,
+          payload: supplierPayload(row));
+    });
+  }
+
+  /// Tedarikçi defteri (yeniden eskiye).
+  Future<List<LedgerEntry>> ledgerFor(int supplierId) {
+    return (select(supplierLedger)
+          ..where((t) => t.supplierId.equals(supplierId))
+          ..orderBy([(t) => OrderingTerm.desc(t.date)]))
+        .get();
+  }
+
+  /// Bakiye: alım - ödeme. Pozitif = tedarikçiye borç.
+  Future<double> supplierBalance(int supplierId) async {
+    final rows = await (select(supplierLedger)
+          ..where((t) => t.supplierId.equals(supplierId)))
+        .get();
+    var b = 0.0;
+    for (final r in rows) {
+      b += r.kind == 'alim' ? r.amount : -r.amount;
+    }
+    return b;
+  }
+
+  Future<double> totalSupplierDebt() async {
+    final rows = await select(supplierLedger).get();
+    var b = 0.0;
+    for (final r in rows) {
+      b += r.kind == 'alim' ? r.amount : -r.amount;
+    }
+    return b;
+  }
+
+  /// Defter kaydı: alım (borç+) veya ödeme (borç-).
+  Future<void> insertLedgerEntry({
+    required int supplierId,
+    required String kind,
+    required double amount,
+    String? note,
+  }) {
+    assert(kind == 'alim' || kind == 'odeme');
+    return transaction(() async {
+      final id =
+          await into(supplierLedger).insert(SupplierLedgerCompanion.insert(
+        supplierId: supplierId,
+        kind: kind,
+        amount: amount,
+        note: Value(note),
+        uuid: newUuid(),
+        originDevice: Value(deviceCode),
+      ));
+      final row = await (select(supplierLedger)
+            ..where((t) => t.id.equals(id)))
+          .getSingle();
+      final sup = await (select(suppliers)
+            ..where((t) => t.id.equals(supplierId)))
+          .getSingle();
+      final payload = ledgerPayload(row);
+      payload['supplier_uuid'] = sup.uuid;
+      await enqueue(
+        table: 'supplier_ledger',
+        rowUuid: row.uuid,
+        payload: payload,
+      );
+    });
+  }
+
+  Map<String, dynamic> ledgerPayload(LedgerEntry e) => {
+        'uuid': e.uuid,
+        'supplier_uuid': null, // doldurulur
+        'date': e.date.toIso8601String(),
+        'kind': e.kind,
+        'amount': e.amount,
+        'note': e.note,
+        'updated_at': e.updatedAt.toIso8601String(),
+        'origin_device': e.originDevice,
+      };
+
+  /// Uzak defter satırı (yoksa ekle; değişmez kayıt).
+  /// Tedarikçi henüz gelmemişse atlanır (sonraki turda denenir).
+  Future<void> applyLedger(
+      Map<String, dynamic> m, String? supplierUuid) async {
+    final uuid = m['uuid'] as String;
+    final dup = await (select(supplierLedger)
+          ..where((t) => t.uuid.equals(uuid)))
+        .getSingleOrNull();
+    if (dup != null) return;
+    final sid = await _supplierIdForUuid(supplierUuid);
+    if (sid == null) return;
+    double d(dynamic v) => (v as num?)?.toDouble() ?? 0;
+    await into(supplierLedger).insert(SupplierLedgerCompanion.insert(
+      supplierId: sid,
+      kind: m['kind'] as String,
+      amount: d(m['amount']),
+      note: Value(m['note'] as String?),
+      date: Value(
+          DateTime.tryParse(m['date'] as String? ?? '') ?? DateTime.now()),
+      updatedAt: Value(
+          DateTime.tryParse(m['updated_at'] as String? ?? '') ??
+              DateTime.now()),
+      uuid: uuid,
+      originDevice: Value(m['origin_device'] as String? ?? '?'),
+    ));
+  }
+
+  Future<Set<String>> ledgerUuids() async {
+    final rows =
+        await (selectOnly(supplierLedger)..addColumns([supplierLedger.uuid]))
+            .get();
+    return {for (final r in rows) r.read(supplierLedger.uuid)!};
   }
 
   /// Veresiye tahsilatı: paid artar, fiş kuyrukla buluta yayılır.

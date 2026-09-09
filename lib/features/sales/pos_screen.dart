@@ -49,6 +49,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   String _payment = 'nakit';
   bool _busy = false;
   String _lastQuery = '';
+  double _discount = 0;
   // Parçalı/cari detayları:
   double _cashSplit = 0;
   double _cardSplit = 0;
@@ -110,10 +111,26 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     ));
   }
 
-  double get _total =>
-      _cart.fold(0, (s, l) => s + l.product.sellPrice * l.qty);
-  double get _kdv => _cart.fold(
-      0, (s, l) => s + kdvTutar(l.product.sellPrice, l.product.kdvRate) * l.qty);
+  double get _subtotal =>
+      _cart.fold(0.0, (s, l) => s + l.product.sellPrice * l.qty);
+
+  /// İndirim çarpanı: satır KDV/karı orantılı küçültür (matrah dürüstlüğü).
+  double get _factor {
+    if (_subtotal <= 0) return 1.0;
+    final d = _discount.clamp(0, _subtotal);
+    return (_subtotal - d) / _subtotal;
+  }
+
+  /// ÖDENECEK tutar (ara toplam - indirim). Mevcut kullanımlar aynen çalışır.
+  double get _total => _subtotal - _discount.clamp(0, _subtotal);
+  double get _kdv =>
+      _cart.fold(
+          0.0,
+          (s, l) =>
+              s +
+              kdvTutar(l.product.sellPrice, l.product.kdvRate) *
+                  l.qty) *
+      _factor;
   int get _count => _cart.length;
 
   void _refocusSearch() {
@@ -156,10 +173,12 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     if (_cart.isEmpty || _busy) return;
     setState(() => _busy = true);
     try {
+      final f = _factor;
       final items = _cart.map((l) {
         final p = l.product;
-        final kdv = kdvTutar(p.sellPrice, p.kdvRate) * l.qty;
-        final kar = satirKar(p.sellPrice, p.buyPrice, p.kdvRate, l.qty);
+        final kdv = kdvTutar(p.sellPrice, p.kdvRate) * l.qty * f;
+        final kar =
+            satirKar(p.sellPrice, p.buyPrice, p.kdvRate, l.qty) * f;
         return SaleItemsCompanion.insert(
           saleId: 0, // completeSale içinde gerçek id yazılır
           productId: p.id <= 0
@@ -178,10 +197,12 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         );
       }).toList();
       final profit = _cart.fold(
-          0.0,
-          (s, l) => s +
-              satirKar(l.product.sellPrice, l.product.buyPrice,
-                  l.product.kdvRate, l.qty));
+              0.0,
+              (s, l) =>
+                  s +
+                  satirKar(l.product.sellPrice, l.product.buyPrice,
+                          l.product.kdvRate, l.qty) *
+                      _factor);
       // Fiş için sepet görüntüsü (temizlemeden önce kopyala).
       final lines = _cart
           .map((l) => ReceiptLine(
@@ -217,11 +238,13 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         return;
       }
       final receiptNo = await _takeReceiptNo();
+      final saleDiscount = _discount.clamp(0.0, _subtotal);
       final result = await _db.completeSale(
         items: items,
         total: saleTotal,
         kdvTotal: saleKdv,
         profitTotal: profit,
+        discount: saleDiscount,
         paymentType: salePay,
         cashAmount: cash,
         cardAmount: card,
@@ -243,6 +266,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         _cashSplit = 0;
         _cardSplit = 0;
         _customer = '';
+        _discount = 0;
       });
       Cloud.instance.refreshPending();
       _refreshPreview();
@@ -251,6 +275,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         lines: lines,
         total: saleTotal,
         kdv: saleKdv,
+        discount: saleDiscount,
         payment: salePay,
         paid: paid,
         change: change,
@@ -327,6 +352,92 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   }
 
   /// Cari (veresiye): müşteri adı zorunlu.
+  /// Sepet indirimi: tutar veya % kısayol. KDV/kar orantılı küçülür.
+  Future<void> _discountDialog() async {
+    if (_cart.isEmpty) return;
+    final ctrl = TextEditingController(
+        text: _discount > 0 ? _discount.toString() : '');
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) {
+          void pct(double p) {
+            final v = _subtotal * p / 100;
+            ctrl.text = v.toStringAsFixed(2);
+            setD(() {});
+          }
+
+          return AlertDialog(
+            title: Text('İndirim • Ara Toplam ${money(_subtotal)}'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: ctrl,
+                  autofocus: true,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(
+                          decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                        RegExp(r'[0-9,.]'))
+                  ],
+                  decoration: const InputDecoration(
+                      labelText: 'İndirim tutarı ₺',
+                      border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    ActionChip(
+                        label: const Text('%5'),
+                        onPressed: () => pct(5)),
+                    ActionChip(
+                        label: const Text('%10'),
+                        onPressed: () => pct(10)),
+                    ActionChip(
+                        label: const Text('Temizle'),
+                        onPressed: () {
+                          ctrl.clear();
+                          setD(() {});
+                        }),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Vazgeç')),
+              FilledButton(
+                onPressed: () {
+                  final v = double.tryParse(
+                          ctrl.text.replaceAll(',', '.')) ??
+                      0;
+                  setState(() {
+                    _discount = v.clamp(0.0, _subtotal);
+                    // Parçalı bölünme indirimsiz kaldıysa sıfırla:
+                    if (_payment == 'parcali' &&
+                        (_cashSplit + _cardSplit - _total)
+                                .abs() >
+                            0.01) {
+                      _cashSplit = 0;
+                      _cardSplit = 0;
+                    }
+                  });
+                  Navigator.pop(ctx);
+                  _refocusSearch();
+                },
+                child: const Text('Uygula'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Future<bool> _cariDialog() async {
     final ctrl = TextEditingController(text: _customer);
     final res = await showDialog<bool>(
@@ -377,6 +488,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     double cash = 0,
     double card = 0,
     String customer = '',
+    double discount = 0,
   }) async {
     await showDialog(
       context: context,
@@ -404,6 +516,16 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                       ),
                     )),
                 const Divider(),
+                if (discount > 0)
+                  Row(
+                      mainAxisAlignment:
+                          MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('İndirim:'),
+                        Text('-${money(discount)}',
+                            style: const TextStyle(
+                                color: Colors.green)),
+                      ]),
                 Row(
                     mainAxisAlignment:
                         MainAxisAlignment.spaceBetween,
@@ -475,6 +597,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   cash: cash,
                   card: card,
                   customer: customer,
+                  discount: discount,
                 );
               } catch (e) {
                 if (mounted) {
@@ -785,6 +908,26 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton.icon(
+                      onPressed: _cart.isEmpty
+                          ? null
+                          : () => _discountDialog(),
+                      icon: const Icon(Icons.percent, size: 18),
+                      label: Text(_discount > 0
+                          ? 'İndirim: -${money(_discount)} (değiştir)'
+                          : 'İndirim Ekle'),
+                    ),
+                    if (_discount > 0)
+                      Text('Ara: ${money(_subtotal)}',
+                          style: const TextStyle(
+                              color: Colors.grey,
+                              decoration:
+                                  TextDecoration.lineThrough)),
+                  ],
+                ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [

@@ -36,7 +36,7 @@ DateTime? overlapCutoff(DateTime? cursor) =>
 /// (birleştirme sonradan satır ekleyebilir), o yüzden açık sıralanır.
 int pushRank(String entity) => switch (entity) {
       'categories' || 'suppliers' || 'expenses' => 0,
-      'products' => 1,
+      'products' || 'supplier_ledger' => 1,
       'sales' => 2,
       'sale_items' || 'stock_movements' => 3,
       _ => 9,
@@ -595,6 +595,35 @@ class Cloud {
             .upsert(await db.productPayload(prod), onConflict: 'uuid');
         return true;
       }
+      if (op.entity == 'supplier_ledger') {
+        final su = payload['supplier_uuid'] as String?;
+        if (su == null) return false;
+        final sup = await (db.select(db.suppliers)
+              ..where((t) => t.uuid.equals(su)))
+            .getSingleOrNull();
+        if (sup == null) return false;
+        try {
+          await sb
+              .from('suppliers')
+              .upsert(db.supplierPayload(sup), onConflict: 'uuid');
+        } catch (pe) {
+          if (!_isConflict(pe)) return false;
+          // Aynı ada takıldıysa bulutu benimse:
+          final existing = await sb
+              .from('suppliers')
+              .select()
+              .eq('name', sup.name)
+              .maybeSingle();
+          if (existing == null) return false;
+          final winner =
+              Map<String, dynamic>.from(existing as Map);
+          // Tedarikçide uuid birleştirme yok; ada göre eşleşen
+          // bulut satırı varsa op düşer (sonraki çekişte gelir).
+          if (winner['uuid'] == su) return true;
+          return false;
+        }
+        return true;
+      }
     } catch (_) {
       return false;
     }
@@ -732,6 +761,16 @@ class Cloud {
     }
     if (expMax != null) await db.savePulled('expenses', expMax);
 
+    DateTime? ledMax = await db.lastPulled('supplier_ledger');
+    for (final le in await since('supplier_ledger', 'date')) {
+      final lm = _m(le);
+      await db.applyLedger(lm, lm['supplier_uuid'] as String?);
+      ledMax = maxSeen(ledMax, lm['date'] as String?);
+    }
+    if (ledMax != null) {
+      await db.savePulled('supplier_ledger', ledMax);
+    }
+
     // Tam uzlaşı (saatte bir): imlecin gerisinde kalmış straggler
     // satırlar için 30 günlük uuid karşılaştırma. Eksikler çekilir.
     await _reconcile(now);
@@ -809,6 +848,26 @@ class Cloud {
       await db.applyExpense(_m(full));
     }
 
+    final localLed = await db.ledgerUuids();
+    final remoteLed = await sb
+        .from('supplier_ledger')
+        .select('uuid,date,supplier_uuid')
+        .gt('date', since30)
+        .order('date');
+    for (final r in remoteLed) {
+      final m = _m(r);
+      if (localLed.contains(m['uuid'])) continue;
+      final full = await sb
+          .from('supplier_ledger')
+          .select()
+          .eq('uuid', m['uuid'])
+          .maybeSingle();
+      if (full == null) continue;
+      final fm = _m(full);
+      await db.applyLedger(
+          fm, fm['supplier_uuid'] as String?);
+    }
+
     await db.savePulled('full_sync', now);
   }
 
@@ -824,6 +883,7 @@ class Cloud {
       'sales',
       'sale_items',
       'expenses',
+      'supplier_ledger',
     ];
     var ch = _sb!.channel('kirtasiye');
     for (final t in tables) {

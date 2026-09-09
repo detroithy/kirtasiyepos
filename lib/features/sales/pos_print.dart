@@ -40,6 +40,7 @@ Future<void> printReceipt({
   double cash = 0,
   double card = 0,
   String customer = '',
+  double discount = 0,
 }) async {
   final doc = pw.Document();
   final mono = pw.TextStyle(font: pw.Font.courier(), fontSize: 9);
@@ -47,11 +48,16 @@ Future<void> printReceipt({
       pw.TextStyle(font: pw.Font.courierBold(), fontSize: 10);
   final center = pw.TextAlign.center;
 
-  // KDV kırılımı
+  // KDV kırılımı (indirim orantılı düşer — kayıtla aynı matematik):
+  final subtotal =
+      lines.fold(0.0, (s, l) => s + l.unitPrice * l.qty);
+  final factor = subtotal > 0
+      ? ((subtotal - discount.clamp(0, subtotal)) / subtotal)
+      : 1.0;
   final kdvMap = <double, double>{};
   for (final l in lines) {
     kdvMap[l.kdvRate] = (kdvMap[l.kdvRate] ?? 0) +
-        kdvTutar(l.unitPrice, l.kdvRate) * l.qty;
+        kdvTutar(l.unitPrice, l.kdvRate) * l.qty * factor;
   }
 
   doc.addPage(
@@ -89,6 +95,14 @@ Future<void> printReceipt({
                 ],
               )),
           pw.Divider(),
+          if (discount > 0)
+            pw.Row(
+                mainAxisAlignment:
+                    pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Indirim', style: mono),
+                  pw.Text('-${money(discount)}', style: mono),
+                ]),
           pw.Row(
               mainAxisAlignment:
                   pw.MainAxisAlignment.spaceBetween,

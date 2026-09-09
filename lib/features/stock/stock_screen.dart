@@ -7,6 +7,7 @@ import '../../app.dart';
 import '../../core/database/app_db.dart';
 import '../../core/sync/cloud.dart';
 import '../../core/utils/money.dart';
+import 'suppliers_screen.dart';
 
 /// Stok merkezi: TÜM ürünler listelenir, giriş/çıkış/sayım yapılır,
 /// kritikler rozetle belli olur, geçmiş ayrı sekmede.
@@ -45,6 +46,15 @@ class _StockScreenState extends ConsumerState<StockScreen>
       appBar: AppBar(
         title: const Text('KırtasiyePOS • Stok Takibi'),
         actions: [
+          IconButton(
+            tooltip: 'Tedarikçiler (borç defteri)',
+            icon: const Icon(Icons.local_shipping),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const SuppliersScreen()),
+            ),
+          ),
           Row(
             children: [
               const Text('Geçmiş'),

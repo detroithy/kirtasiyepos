@@ -210,6 +210,8 @@ void main() {
     expect(await db.pendingCount(), 0);
     await db.close();
   });
+
+  test('tedarikçi defter akışı', _supplierLedgerSuite);
 }
 
 Future<String?> _catOf(AppDb db, int productId) async {
@@ -221,4 +223,36 @@ Future<String?> _catOf(AppDb db, int productId) async {
         ..where((t) => t.id.equals(p.categoryId!)))
       .getSingleOrNull();
   return c?.uuid;
+}
+
+Future<void> _supplierLedgerSuite() async {
+  final db = AppDb.forTest(NativeDatabase.memory());
+  // Tedarikçi + defter matematiği:
+  final s = await db.insertSupplier(name: 'Gipta', phone: '123');
+  expect(await db.supplierBalance(s.id), 0);
+  await db.insertLedgerEntry(
+      supplierId: s.id, kind: 'alim', amount: 1000, note: '12 koli');
+  await db.insertLedgerEntry(
+      supplierId: s.id, kind: 'odeme', amount: 400);
+  expect(await db.supplierBalance(s.id), 600);
+  expect(await db.totalSupplierDebt(), 600);
+  expect(await db.pendingCount(), 3); // tedarikçi + 2 satır
+  // Uzak satır idempotent uygulanır:
+  final rows = await db.ledgerFor(s.id);
+  expect(rows.length, 2);
+  final remoteUuid = newUuid();
+  Future<void> applyRemote() => db.applyLedger({
+        'uuid': remoteUuid,
+        'date': DateTime.now().toIso8601String(),
+        'kind': 'alim',
+        'amount': 100.0,
+        'note': null,
+        'updated_at': DateTime.now().toIso8601String(),
+        'origin_device': 'K2',
+      }, s.uuid);
+  await applyRemote();
+  await applyRemote(); // tekrar -> çift yazılmaz
+  expect(await db.supplierBalance(s.id), 700);
+  expect((await db.ledgerFor(s.id)).length, 3);
+  await db.close();
 }

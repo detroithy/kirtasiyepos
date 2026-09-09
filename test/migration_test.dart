@@ -57,12 +57,16 @@ void main() {
     expect(await db.lastPulled('sales'), isNull);
 
     // Migrasyon sonrası yazma akışı çalışır:
-    await db.adjustStock(
-        productId: products.single.id,
+    await db.adjustStock(        productId: products.single.id,
         qtyChange: 5,
         type: 'giris',
         note: 'test');
     expect(await db.pendingCount(), 2); // hareket + ürün
+    // v4 defter tablosu da hazır:
+    final sup = await db.insertSupplier(name: 'Test Toptan');
+    await db.insertLedgerEntry(
+        supplierId: sup.id, kind: 'alim', amount: 500);
+    expect(await db.supplierBalance(sup.id), 500);
     await db.close();
     if (file.existsSync()) file.deleteSync();
   });
