@@ -631,6 +631,7 @@ class _PosDeviceCardState extends State<PosDeviceCard> {
   final _salePath = TextEditingController();
   final _dept = <double, TextEditingController>{};
   String _driver = 'simulator';
+  bool _bypass = false;
   String? _status;
   bool _busy = false;
   bool _loaded = false;
@@ -653,6 +654,7 @@ class _PosDeviceCardState extends State<PosDeviceCard> {
     if (mounted) {
       setState(() {
         _driver = s.driver;
+        _bypass = s.bypass;
         _loaded = true;
       });
     }
@@ -750,6 +752,24 @@ class _PosDeviceCardState extends State<PosDeviceCard> {
                   ],
                   onChanged: (v) =>
                       setState(() => _driver = v ?? 'simulator'),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  title: const Text(
+                      'Acil durum: cihazı atla (manuel kart)'),
+                  subtitle: const Text(
+                      'Açıkken kart satışları cihaza sorulmadan manuel kaydedilir. Fişte izi olur.',
+                      style:
+                          TextStyle(fontSize: 11, color: Colors.grey)),
+                  value: _bypass,
+                  activeThumbColor: Colors.orange,
+                  onChanged: (v) async {
+                    setState(() => _bypass = v);
+                    await PosSettings().save(bypass: v);
+                    _msg(v
+                        ? 'Bypass AÇIK: kartlar manuel kaydedilecek.'
+                        : 'Bypass kapalı: cihaz devrede.');
+                  },
                 ),
                 const SizedBox(height: 8),
                 TextField(

@@ -173,11 +173,22 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   }
 
   /// Kartlı tutarı POS cihazından onaylatır. Onay yoksa null döner
-  /// (satış KAYDEDİLMEZ). İptalde çift-tahsilat uyarısı verilir.
+  /// (satış KAYDEDİLMEZ).
+  /// - Bypass açıksa cihaza sorulmadan manuel onay döner (fişte izi olur).
+  /// - Bağlantı/zaman aşımı hatalarında Tekrar Dene / Manuel Devam Et
+  ///   / Vazgeç seçenekleri sunulur (sistem asla kilitlenmez).
+  /// - Cihazın açık REDDİnde manuel seçenek YOKTUR (kart reddedildi).
   Future<PosResult?> _authorizeCard(
       double amountTl, String receiptNo) async {
     final settings = await PosSettings.load();
     if (!mounted) return null;
+    if (settings.bypass) {
+      return const PosResult(
+        approved: true,
+        manual: true,
+        message: 'Acil durum bypassı: tutar terminalden elle alındı',
+      );
+    }
     final PosDevice device = settings.driver == 'tokenx'
         ? TokenXDevice(settings: settings)
         : SimulatedDevice();
@@ -233,19 +244,11 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           .sale(req)
           .timeout(req.timeout + const Duration(seconds: 10));
     } on PosNotConfigured catch (e) {
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(e.message)));
-      }
-      return null;
+      if (mounted) Navigator.pop(context);
+      return _deviceFailure(e.message, amountTl, receiptNo);
     } catch (e) {
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Cihaz hatası: $e')));
-      }
-      return null;
+      if (mounted) Navigator.pop(context);
+      return _deviceFailure('Cihaz hatası: $e', amountTl, receiptNo);
     }
     if (mounted) Navigator.pop(context); // bekleme diyaloğu
     if (cancelled) {
@@ -257,6 +260,13 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       return null;
     }
     if (!res.approved) {
+      // Belirsiz sonuç (zaman aşımı): manuel devam SEÇENEKLİ.
+      if (res.uncertain) {
+        return _deviceFailure(
+            '${res.message}\nSatış henüz kaydedilmedi.',
+            amountTl,
+            receiptNo);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Ödeme reddedildi: ${res.message}')));
@@ -264,6 +274,55 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       return null;
     }
     return res;
+  }
+
+  /// Cihaz arızasında kilitlenmeyen çıkış: Tekrar Dene /
+  /// Manuel Devam Et (terminalden elle tahsil, fişte izi olur) / Vazgeç.
+  Future<PosResult?> _deviceFailure(
+      String message, double amountTl, String receiptNo) async {
+    if (!mounted) return null;
+    final choice = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cihaza ulaşılamadı'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(message),
+            const SizedBox(height: 8),
+            Text('Tutar: ${money(amountTl)}',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'cancel'),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'manual'),
+            child: const Text('Manuel Devam Et'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, 'retry'),
+            child: const Text('Tekrar Dene'),
+          ),
+        ],
+      ),
+    );
+    if (choice == 'manual') {
+      return const PosResult(
+        approved: true,
+        manual: true,
+        message: 'Manuel devam: tutar terminalden elle alındı',
+      );
+    }
+    if (choice == 'retry') {
+      return _authorizeCard(amountTl, receiptNo);
+    }
+    return null;
   }
 
   Future<void> _completeSale() async {
@@ -353,7 +412,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         }
         approvalCode = auth.approvalCode;
         fiscalNo = auth.fiscalNo;
-        posStatus = 'approved';
+        posStatus = auth.manual ? 'manual' : 'approved';
       }
       final result = await _db.completeSale(
         items: items,
@@ -403,6 +462,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         customer: customer.trim(),
         approvalCode: approvalCode,
         fiscalNo: fiscalNo,
+        posStatus: posStatus,
       );
     } catch (e) {
       if (!mounted) return;
@@ -612,6 +672,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     double discount = 0,
     String approvalCode = '',
     String fiscalNo = '',
+    String posStatus = '',
   }) async {
     await showDialog(
       context: context,
@@ -704,6 +765,10 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   Text('Mali Fiş No: $fiscalNo',
                       style: const TextStyle(
                           color: Colors.grey, fontSize: 12)),
+                if (posStatus == 'manual')
+                  const Text('Not: kart tutarı terminalden elle alındı',
+                      style: TextStyle(
+                          color: Colors.orange, fontSize: 12)),
               ],
             ),
           ),
@@ -731,6 +796,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   discount: discount,
                   approvalCode: approvalCode,
                   fiscalNo: fiscalNo,
+                  posStatus: posStatus,
                 );
               } catch (e) {
                 if (mounted) {

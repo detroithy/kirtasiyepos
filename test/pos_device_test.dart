@@ -66,8 +66,7 @@ void main() {
     expect((p['lines'] as List).single['kdvDept'], 4);
   });
 
-  test('yol girilmeden TokenX satış yapmaz', () async {
-    final s = PosSettings(driver: 'tokenx', salePath: '');
+  test('yol girilmeden TokenX satış yapmaz', () async {    final s = PosSettings(driver: 'tokenx', salePath: '');
     final t = TokenXDevice(settings: s);
     bool threw = false;
     try {
@@ -81,5 +80,13 @@ void main() {
       threw = true;
     }
     expect(threw, true);
+  });
+
+  test('bypass varsayılanı kapalı, manuel sonuç işaretli', () {
+    expect(PosSettings().bypass, false);
+    const r = PosResult(approved: true, manual: true);
+    expect(r.approved, true);
+    expect(r.manual, true);
+    expect(r.uncertain, false);
   });
 }

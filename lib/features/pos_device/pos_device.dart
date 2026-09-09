@@ -49,11 +49,20 @@ class PosConnection {
 
 class PosResult {
   final bool approved;
+
+  /// true ise tutar cihazdan DEĞİL elle tahsil edildi (fişte izi olur).
+  final bool manual;
+
+  /// true ise para hareketi belirsiz (zaman aşımı) — çift tahsilat
+  /// riski için kullanıcı uyarılmalı, kayıt yine de tutulabilir.
+  final bool uncertain;
   final String approvalCode;
   final String fiscalNo;
   final String message;
   const PosResult({
     required this.approved,
+    this.manual = false,
+    this.uncertain = false,
     this.approvalCode = '',
     this.fiscalNo = '',
     this.message = '',
@@ -61,6 +70,8 @@ class PosResult {
 
   const PosResult.declined(this.message)
       : approved = false,
+        manual = false,
+        uncertain = false,
         approvalCode = '',
         fiscalNo = '';
 }
@@ -71,12 +82,17 @@ class PosSettings {
   static const kBaseUrl = 'pos_base_url';
   static const kTimeoutSec = 'pos_timeout_sec';
   static const kSalePath = 'pos_sale_path';
+  static const kBypass = 'pos_bypass';
   static const kDeptPrefix = 'pos_dept_'; // +0/1/10/20
 
   final String driver;
   final String baseUrl;
   final int timeoutSec;
   final String salePath;
+
+  /// true ise kart satışları cihaza SORULMADAN manuel kaydedilir
+  /// (fişte pos_status='manual' izi olur). Acil durum şalteri.
+  final bool bypass;
   final Map<double, int> deptByKdv;
 
   PosSettings({
@@ -84,6 +100,7 @@ class PosSettings {
     this.baseUrl = 'http://127.0.0.1:9001',
     this.timeoutSec = 60,
     this.salePath = '',
+    this.bypass = false,
     Map<double, int>? deptByKdv,
   }) : deptByKdv = deptByKdv ?? {0.0: 1, 1.0: 2, 10.0: 3, 20.0: 4};
 
@@ -97,6 +114,7 @@ class PosSettings {
       baseUrl: p.getString(kBaseUrl) ?? 'http://127.0.0.1:9001',
       timeoutSec: p.getInt(kTimeoutSec) ?? 60,
       salePath: p.getString(kSalePath) ?? '',
+      bypass: p.getBool(kBypass) ?? false,
       deptByKdv: {
         0: dept('0', 1),
         1: dept('1', 2),
@@ -111,10 +129,12 @@ class PosSettings {
     String? baseUrl,
     int? timeoutSec,
     String? salePath,
+    bool? bypass,
     Map<double, int>? deptByKdv,
   }) async {
     final p = await SharedPreferences.getInstance();
     if (driver != null) await p.setString(kDriver, driver);
+    if (bypass != null) await p.setBool(kBypass, bypass);
     if (baseUrl != null) {
       await p.setString(
           kBaseUrl, baseUrl.trim().replaceAll(RegExp(r'/+$'), ''));

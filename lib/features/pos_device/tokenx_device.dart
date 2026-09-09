@@ -80,8 +80,12 @@ class TokenXDevice implements PosDevice {
           )
           .timeout(req.timeout);
     } on TimeoutException {
-      return const PosResult.declined(
-          'Cihaz yanıt vermedi (zaman aşımı). Kart çekilmiş olabilir — cihaz fişini kontrol edin, çift tahsilata dikkat!');
+      return const PosResult(
+        approved: false,
+        uncertain: true,
+        message:
+            'Cihaz yanıt vermedi (zaman aşımı). Kart çekilmiş olabilir — cihaz fişini kontrol edin, çift tahsilata dikkat!',
+      );
     } catch (e) {
       return PosResult.declined('Bağlantı hatası: $e');
     }
