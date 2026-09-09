@@ -12,6 +12,11 @@ part 'app_db.g.dart';
 final _uuidGen = Uuid();
 String newUuid() => _uuidGen.v4();
 
+/// Tohum verisi için sabit uuid (v5): her cihazda aynı ürün aynı
+/// uuid'yi alır, ilk senkron çift kayıt üretmez.
+String seedUuid(String kind, String name) =>
+    Uuid().v5(Namespace.url.value, 'kirtasiye-pos:$kind:$name');
+
 /// Kategoriler (Defter, Kalem, Kağıt...)
 class Categories extends Table {
   IntColumn get id => integer().autoIncrement()();
@@ -437,6 +442,90 @@ class AppDb extends _$AppDb {
         'updated_at': c.updatedAt.toIso8601String(),
       };
 
+  Map<String, dynamic> supplierPayload(Supplier s) => {
+        'uuid': s.uuid,
+        'name': s.name,
+        'phone': s.phone,
+        'updated_at': s.updatedAt.toIso8601String(),
+      };
+
+  /// İlk eşleşme / kurtarma: TÜM yerel satırları kuyruğa yazar.
+  /// Push upsert + pull idempotence sayesinde çift kayıt üretmez.
+  /// Önce eski kuyruğu temizler (güncel durum yeniden kurulur).
+  Future<int> requeueAll() {
+    return transaction(() async {
+      await delete(syncQueue).go();
+      var n = 0;
+      for (final c in await select(categories).get()) {
+        await enqueue(
+            table: 'categories',
+            rowUuid: c.uuid,
+            payload: categoryPayload(c));
+        n++;
+      }
+      for (final s in await select(suppliers).get()) {
+        await enqueue(
+            table: 'suppliers',
+            rowUuid: s.uuid,
+            payload: supplierPayload(s));
+        n++;
+      }
+      for (final p in await select(products).get()) {
+        await enqueue(
+            table: 'products',
+            rowUuid: p.uuid,
+            payload: await productPayload(p));
+        n++;
+      }
+      for (final s in await select(sales).get()) {
+        await enqueue(
+            table: 'sales', rowUuid: s.uuid, payload: salePayload(s));
+        n++;
+        final items = await (select(saleItems)
+              ..where((t) => t.saleId.equals(s.id)))
+            .get();
+        for (final i in items) {
+          String? prodUuid;
+          if (i.productId != null) {
+            final pr = await (select(products)
+                  ..where((t) => t.id.equals(i.productId!)))
+                .getSingleOrNull();
+            prodUuid = pr?.uuid;
+          }
+          final payload = itemPayload(i);
+          payload['product_uuid'] = prodUuid;
+          await enqueue(
+              table: 'sale_items',
+              rowUuid: i.uuid,
+              payload: payload);
+          n++;
+        }
+      }
+      for (final m in await select(stockMovements).get()) {
+        final p = await (select(products)
+              ..where((t) => t.id.equals(m.productId)))
+            .getSingleOrNull();
+        if (p == null) continue;
+        await enqueue(
+            table: 'stock_movements',
+            rowUuid: m.uuid,
+            payload: {
+              ...movementPayload(m),
+              'product_uuid': p.uuid,
+            });
+        n++;
+      }
+      for (final e in await select(expenses).get()) {
+        await enqueue(
+            table: 'expenses',
+            rowUuid: e.uuid,
+            payload: expensePayload(e));
+        n++;
+      }
+      return n;
+    });
+  }
+
   // ================= SYNC: uzak uygula (pull) =================
 
   Future<int?> _categoryIdForUuid(String? uuid) async {
@@ -447,7 +536,8 @@ class AppDb extends _$AppDb {
     return c?.id;
   }
 
-  Future<int?> _supplierIdForUuid(String? uuid) async {    if (uuid == null) return null;
+  Future<int?> _supplierIdForUuid(String? uuid) async {
+    if (uuid == null) return null;
     final s = await (select(suppliers)
           ..where((t) => t.uuid.equals(uuid)))
         .getSingleOrNull();
@@ -511,6 +601,26 @@ class AppDb extends _$AppDb {
     }
   }
 
+  /// Aynı ürünün başka uuid'li ikizi: barkod eşleşmesi ya da
+  /// ikisi de barkodsuz + ad eşleşmesi (tohum/kayıp eşleşme yakalar).
+  Future<Product?> _findTwin(Map<String, dynamic> m) async {
+    final barcode = m['barcode'] as String?;
+    if (barcode != null && barcode.isNotEmpty) {
+      return (select(products)
+            ..where((t) => t.barcode.equals(barcode)))
+          .getSingleOrNull();
+    }
+    final nm = (m['name'] as String? ?? '').toLowerCase();
+    if (nm.isEmpty) return null;
+    final cands = await (select(products)
+          ..where((t) => t.barcode.isNull()))
+        .get();
+    for (final c in cands) {
+      if (c.name.toLowerCase() == nm) return c;
+    }
+    return null;
+  }
+
   /// Uzak ürünü uygula. Stok kuralı: ürün YENİYSE snapshot alınır,
   /// mevcutsa stok HARİÇ tüm alanlar güncellenir (stok deltalarla yürür).
   Future<void> applyProduct(Map<String, dynamic> m) async {
@@ -524,6 +634,59 @@ class AppDb extends _$AppDb {
     final supId = await _supplierIdForUuid(m['supplier_uuid'] as String?);
     double d(dynamic v) => (v as num?)?.toDouble() ?? 0;
     if (local == null) {
+      // Aynı ürün başka uuid ile kayıtlıysa BİRLEŞTİR (çift kayıt önlenir):
+      final twin = await _findTwin(m);
+      if (twin != null) {
+        final takeRemote =
+            remoteUpdated == null || !twin.updatedAt.isAfter(remoteUpdated);
+        if (takeRemote) {
+          await (update(products)
+                ..where((t) => t.id.equals(twin.id)))
+              .write(ProductsCompanion(
+            uuid: Value(uuid),
+            barcode: Value(m['barcode'] as String?),
+            name: Value(m['name'] as String),
+            categoryId: Value(catId),
+            unit: Value(m['unit'] as String? ?? 'adet'),
+            buyPrice: Value(d(m['buy_price'])),
+            sellPrice: Value(d(m['sell_price'])),
+            kdvRate: Value(d(m['kdv_rate'])),
+            stock: Value(d(m['stock'])),
+            criticalLevel: Value(d(m['critical_level'])),
+            supplierId: Value(supId),
+            updatedAt: Value(remoteUpdated ?? DateTime.now()),
+            originDevice: Value(m['origin_device'] as String? ?? '?'),
+            isDeleted: Value(m['is_deleted'] as bool? ?? false),
+            syncStatus: const Value(0),
+          ));
+        } else {
+          // Yerel daha taze: uuid'yi benimse, içerik yerelde kalır ve
+          // kuyrukla buluta yayılır.
+          await (update(products)
+                ..where((t) => t.id.equals(twin.id)))
+              .write(ProductsCompanion(
+            uuid: Value(uuid),
+            updatedAt: Value(DateTime.now()),
+            syncStatus: const Value(1),
+          ));
+          final fresh = await (select(products)
+                ..where((t) => t.id.equals(twin.id)))
+              .getSingle();
+          await enqueue(
+              table: 'products',
+              rowUuid: uuid,
+              payload: await productPayload(fresh));
+        }
+        markProductFresh(twin.id);
+        // Eski uuid bulutta öksüz kalmasın: sil bayraklı mezar taşı.
+        final tomb = Map<String, dynamic>.from(m)
+          ..['uuid'] = twin.uuid
+          ..['is_deleted'] = true
+          ..['updated_at'] = DateTime.now().toIso8601String();
+        await enqueue(
+            table: 'products', rowUuid: twin.uuid, payload: tomb);
+        return;
+      }
       await into(products).insert(ProductsCompanion.insert(
         barcode: Value(m['barcode'] as String?),
         name: m['name'] as String,
@@ -1124,12 +1287,12 @@ class AppDb extends _$AppDb {
         .map((r) => r.read(categories.id.count()) ?? 0)
         .getSingle();
     if (catCount > 0) return;
-    final defter = await into(categories).insert(
-        CategoriesCompanion.insert(name: 'Defter', uuid: newUuid()));
-    final kalem = await into(categories)
-        .insert(CategoriesCompanion.insert(name: 'Kalem', uuid: newUuid()));
-    final kagit = await into(categories)
-        .insert(CategoriesCompanion.insert(name: 'Kağıt', uuid: newUuid()));
+    final defter = await into(categories).insert(CategoriesCompanion.insert(
+        name: 'Defter', uuid: seedUuid('category', 'Defter')));
+    final kalem = await into(categories).insert(CategoriesCompanion.insert(
+        name: 'Kalem', uuid: seedUuid('category', 'Kalem')));
+    final kagit = await into(categories).insert(CategoriesCompanion.insert(
+        name: 'Kağıt', uuid: seedUuid('category', 'Kağıt')));
     await into(products).insert(ProductsCompanion.insert(
       barcode: const Value('868000000001'),
       name: 'Çizgili Defter A4 80 Yaprak',
@@ -1139,7 +1302,7 @@ class AppDb extends _$AppDb {
       kdvRate: const Value(10),
       stock: const Value(50),
       criticalLevel: const Value(10),
-      uuid: newUuid(),
+      uuid: seedUuid('product', 'Çizgili Defter A4 80 Yaprak'),
     ));
     await into(products).insert(ProductsCompanion.insert(
       name: 'Kurşun Kalem HB',
@@ -1149,7 +1312,7 @@ class AppDb extends _$AppDb {
       kdvRate: const Value(20),
       stock: const Value(200),
       criticalLevel: const Value(20),
-      uuid: newUuid(),
+      uuid: seedUuid('product', 'Kurşun Kalem HB'),
     ));
     await into(products).insert(ProductsCompanion.insert(
       name: 'Fotokopi Kağıdı A4 80gr (500)',
@@ -1159,7 +1322,7 @@ class AppDb extends _$AppDb {
       kdvRate: const Value(20),
       stock: const Value(30),
       criticalLevel: const Value(5),
-      uuid: newUuid(),
+      uuid: seedUuid('product', 'Fotokopi Kağıdı A4 80gr (500)'),
     ));
   }
 }

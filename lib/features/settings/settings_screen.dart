@@ -26,6 +26,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         padding: const EdgeInsets.all(12),
         children: [
           const CloudCard(),
+          const DiagCard(),
           Card(
             child: ListTile(
               leading: const Icon(Icons.backup),
@@ -191,7 +192,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 /// Bulut senkron kartı (Faz-3): Supabase bağlantısı + giriş + kasa kodu.
 class CloudCard extends StatefulWidget {
   const CloudCard({super.key});
-
   @override
   State<CloudCard> createState() => _CloudCardState();
 }
@@ -427,6 +427,149 @@ class _CloudCardState extends State<CloudCard> {
                   ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Senkron tanı kartı: yerel vs bulut sayaçları yan yana.
+/// Bozuk taraf tek bakışta belli olur.
+class DiagCard extends StatefulWidget {
+  const DiagCard({super.key});
+
+  @override
+  State<DiagCard> createState() => _DiagCardState();
+}
+
+class _DiagCardState extends State<DiagCard> {
+  Map<String, String>? _info;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _busy = true);
+    try {
+      final info = await Cloud.instance.debugInfo();
+      if (mounted) setState(() => _info = info);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ExpansionTile(
+        leading: const Icon(Icons.medical_services),
+        title: const Text('Senkron Tanı'),
+        subtitle: const Text('Yerel vs bulut sayaçları'),
+        children: [
+          if (_busy && _info == null)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          if (_info != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  _row('Cihaz', _info!['cihaz'] ?? '?'),
+                  _row('E-posta', _info!['eposta'] ?? '-'),
+                  const Divider(),
+                  _row('Yerel ürün', _info!['yerel_urun'] ?? '?',
+                      alt: 'Bulut ürün: ${_info!['bulut_urun'] ?? '?'}'),
+                  _row('Yerel satış', _info!['yerel_satis'] ?? '?',
+                      alt: 'Bulut satış: ${_info!['bulut_satis'] ?? '?'}'),
+                  _row('Yerel hareket',
+                      _info!['yerel_hareket'] ?? '?',
+                      alt:
+                          'Bulut hareket: ${_info!['bulut_hareket'] ?? '?'}'),
+                  const Divider(),
+                  _row('Kuyruk', _info!['kuyruk'] ?? '?'),
+                  _row('Son çekiş', _info!['son_cekis'] ?? '-'),
+                  if (_info!.containsKey('push_hata'))
+                    _row('Push hatası', _info!['push_hata']!,
+                        err: true),
+                  if (_info!.containsKey('bulut_hata'))
+                    _row('Bulut hatası', _info!['bulut_hata']!,
+                        err: true),
+                  if (_info!.containsKey('son_hata'))
+                    _row('Son hata', _info!['son_hata']!,
+                        err: true),
+                ],
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _busy ? null : _load,
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Yenile'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: _busy
+                        ? null
+                        : () async {
+                            final messenger =
+                                ScaffoldMessenger.of(context);
+                            setState(() => _busy = true);
+                            try {
+                              final n = await Cloud.instance
+                                  .requeueAndSync();
+                              messenger.showSnackBar(SnackBar(
+                                  content: Text(
+                                      '$n satır kuyruğa kuruldu, senkron çalıştı.')));
+                            } finally {
+                              await _load();
+                            }
+                          },
+                    icon:
+                        const Icon(Icons.upload_rounded, size: 18),
+                    label: const Text('Tümünü Gönder'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _row(String k, String v, {String? alt, bool err = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Expanded(
+              child: Text(k,
+                  style: const TextStyle(color: Colors.grey))),
+          if (alt != null)
+            Expanded(
+                child: Text(alt,
+                    textAlign: TextAlign.center,
+                    style:
+                        const TextStyle(color: Colors.grey))),
+          Expanded(
+            child: Text(v,
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: err ? Colors.red : null)),
           ),
         ],
       ),

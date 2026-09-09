@@ -198,11 +198,61 @@ class Cloud {
     }
   }
 
+  /// Tanı kartı: yerel vs bulut sayaçları + imleçler + son hata.
+  /// Hangi tarafın bozuk olduğunu tek bakışta gösterir.
+  Future<Map<String, String>> debugInfo() async {
+    final out = <String, String>{};
+    out['cihaz'] = _db?.deviceCode ?? '?';
+    out['eposta'] = userEmail ?? '-';
+    if (_db != null) {
+      final db = _db!;
+      out['yerel_urun'] =
+          '${(await db.select(db.products).get()).length}';
+      out['yerel_satis'] =
+          '${(await db.select(db.sales).get()).length}';
+      out['yerel_hareket'] =
+          '${(await db.select(db.stockMovements).get()).length}';
+      out['kuyruk'] = '${await db.pendingCount()}';
+      out['son_cekis'] = '${await db.lastPulled('sales')}';
+    }
+    if (_sb != null && isAuthed) {
+      try {
+        out['bulut_urun'] = '${await _sb!.from('products').count()}';
+        out['bulut_satis'] = '${await _sb!.from('sales').count()}';
+        out['bulut_hareket'] =
+            '${await _sb!.from('stock_movements').count()}';
+      } catch (e) {
+        out['bulut_hata'] = e.toString().split('\n').first;
+      }
+    } else {
+      out['bulut'] = 'giriş yok';
+    }
+    if (lastPushError != null) out['push_hata'] = lastPushError!;
+    final m = cloudStatus.value.message;
+    if (m != null) out['son_hata'] = m;
+    return out;
+  }
+
+  /// Kurtarma: tüm yerel veriyi kuyruğa kur + hemen senkronla.
+  /// Dönen sayı kuyruğa yazılan satırdır.
+  Future<int> requeueAndSync() async {
+    if (_db == null) return 0;
+    final n = await _db!.requeueAll();
+    await refreshPending();
+    await syncNow();
+    return n;
+  }
+
   Future<void> syncNow() async {
     if (_running || _db == null || _sb == null || !isAuthed) return;
     _running = true;
     _set(const CloudStatus(mode: CloudMode.syncing));
     try {
+      // İlk eşleşme: imleçler boşsa tüm yerel veri kuyruğa kurulur
+      // (eski kayıtlar + başka sürümden kalanlar dahil).
+      if (await _db!.lastPulled('sales') == null) {
+        await _db!.requeueAll();
+      }
       await _push();
       await _pull();
       _subscribe();
@@ -223,8 +273,12 @@ class Cloud {
 
   String _remote(String entity) => entity; // birebir tablo adları
 
+  /// Son push turunda takılan ilk işlemin hatası (tanı için saklanır).
+  String? lastPushError;
+
   Future<void> _push() async {
     final db = _db!, sb = _sb!;
+    lastPushError = null;
     var ops = await db.pendingOps(limit: 200);
     while (ops.isNotEmpty) {
       final done = <int>[];
@@ -237,7 +291,9 @@ class Cloud {
               .from(_remote(op.entity))
               .upsert(payload, onConflict: 'uuid');
           done.add(op.id);
-        } catch (_) {
+        } catch (e) {
+          lastPushError =
+              '[${op.entity}:${op.rowUuid}] ${e.toString().split('\n').first}';
           await db.bumpAttempts(op.id);
           failed = true;
           break; // ilk hatada dur, sonrakiler sonraki turda
