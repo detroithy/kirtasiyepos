@@ -5,6 +5,20 @@ import '../../core/database/app_db.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 
+/// Okunabilirlik paketi (kullanıcı geri bildirimi):
+/// ızgara neredeyse görünmez tutulur, eksen yazıları koyu + kalın
+/// basılır ki grid çizgileriyle çakışmasın.
+FlLine _faintGrid(double v) => FlLine(
+      color: PosColors.navy.withValues(alpha: 0.07),
+      strokeWidth: 1,
+    );
+
+const TextStyle _axisStyle = TextStyle(
+  fontSize: 11,
+  fontWeight: FontWeight.w600,
+  color: PosColors.ink,
+);
+
 /// Rapor grafikleri (modern stil): saatlik bar + kategori donut +
 /// 7 günlük çizgi. Salt-okunur sorgular.
 class ChartsSection extends StatelessWidget {
@@ -187,10 +201,7 @@ class ChartsSection extends StatelessWidget {
                   gridData: FlGridData(
                     show: true,
                     drawVerticalLine: false,
-                    getDrawingHorizontalLine: (v) => FlLine(
-                      color: PosColors.cardBorder,
-                      strokeWidth: 1,
-                    ),
+                    getDrawingHorizontalLine: _faintGrid,
                   ),
                   borderData: FlBorderData(show: false),
                   barTouchData: BarTouchData(
@@ -208,7 +219,7 @@ class ChartsSection extends StatelessWidget {
                         const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 12),
+                            fontSize: 13),
                       ),
                     ),
                   ),
@@ -225,9 +236,7 @@ class ChartsSection extends StatelessWidget {
                         reservedSize: 46,
                         getTitlesWidget: (v, _) => Text(
                           moneyCompact(v),
-                          style: const TextStyle(
-                              fontSize: 10,
-                              color: PosColors.ink2),
+                          style: _axisStyle,
                         ),
                       ),
                     ),
@@ -245,9 +254,7 @@ class ChartsSection extends StatelessWidget {
                             padding:
                                 const EdgeInsets.only(top: 4),
                             child: Text('$h:00',
-                                style: const TextStyle(
-                                    fontSize: 10,
-                                    color: PosColors.ink2)),
+                                style: _axisStyle),
                           );
                         },
                       ),
@@ -343,18 +350,7 @@ class ChartsSection extends StatelessWidget {
                           for (var i = 0;
                               i < entries.length && i < 6;
                               i++)
-                            PieChartSectionData(
-                              value: entries[i].value,
-                              title:
-                                  '%${(entries[i].value / total * 100).toStringAsFixed(0)}',
-                              color: _palette[
-                                  i % _palette.length],
-                              radius: 62,
-                              titleStyle: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white),
-                            ),
+                            _pieSlice(entries, total, i),
                         ],
                       ),
                     ),
@@ -447,8 +443,26 @@ class ChartsSection extends StatelessWidget {
     );
   }
 
-  // ---------- 7 günlük çizgi ----------
+  /// Pasta dilimi: açık zeminde (amber) koyu yazı, koyuda beyaz.
+  /// Böylece yüzde her dilimde okunur.
+  PieChartSectionData _pieSlice(
+      List<MapEntry<String, double>> entries, double total, int i) {
+    final bg = _palette[i % _palette.length];
+    final onLight = bg == PosColors.amber;
+    return PieChartSectionData(
+      value: entries[i].value,
+      title:
+          '%${(entries[i].value / total * 100).toStringAsFixed(0)}',
+      color: bg,
+      radius: 62,
+      titleStyle: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+          color: onLight ? PosColors.navy : Colors.white),
+    );
+  }
 
+  // ---------- 7 günlük çizgi ----------
   Widget _trendCard(_Charts c) {
     final spots = [
       for (var i = 0; i < c.trend.length; i++)
@@ -501,11 +515,7 @@ class ChartsSection extends StatelessWidget {
                   gridData: FlGridData(
                     show: true,
                     drawVerticalLine: false,
-                    getDrawingHorizontalLine: (v) =>
-                        FlLine(
-                      color: PosColors.cardBorder,
-                      strokeWidth: 1,
-                    ),
+                    getDrawingHorizontalLine: _faintGrid,
                   ),
                   borderData: FlBorderData(show: false),
                   lineTouchData: LineTouchData(
@@ -516,12 +526,11 @@ class ChartsSection extends StatelessWidget {
                       getTooltipItems: (touched) => touched
                           .map((s) => LineTooltipItem(
                                 '${fday(c.trend[s.x.toInt()].day).substring(0, 5)}\n${money(s.y)}',
-                                TextStyle(
-                                    color: s.bar.color ??
-                                        Colors.white,
+                                const TextStyle(
+                                    color: Colors.white,
                                     fontWeight:
                                         FontWeight.bold,
-                                    fontSize: 12),
+                                    fontSize: 13),
                               ))
                           .toList(),
                     ),
@@ -539,9 +548,7 @@ class ChartsSection extends StatelessWidget {
                         reservedSize: 46,
                         getTitlesWidget: (v, _) => Text(
                           moneyCompact(v),
-                          style: const TextStyle(
-                              fontSize: 10,
-                              color: PosColors.ink2),
+                          style: _axisStyle,
                         ),
                       ),
                     ),
@@ -560,9 +567,7 @@ class ChartsSection extends StatelessWidget {
                             child: Text(
                               fday(c.trend[i].day)
                                   .substring(0, 5),
-                              style: const TextStyle(
-                                  fontSize: 10,
-                                  color: PosColors.ink2),
+                              style: _axisStyle,
                             ),
                           );
                         },
