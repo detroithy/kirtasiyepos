@@ -296,6 +296,10 @@ class Cloud {
       final r = pushRank(a.entity).compareTo(pushRank(b.entity));
       return r != 0 ? r : a.id.compareTo(b.id);
     });
+    // Senkron başına op başına en fazla 2 iyileştirme (kısır döngü
+    // yok; attempts freni bilerek YOK çünkü eski sürümde şişmiş
+    // sayaçlar iyileşmeyi sonsuza dek engelliyordu).
+    final heals = <int, int>{};
     while (ops.isNotEmpty) {
       final done = <int>[];
       var failed = false;
@@ -313,13 +317,14 @@ class Cloud {
             await db.dropOps([op.id]);
             continue;
           }
-          // Eksik üst satır (FK 23503): önce onu it, bunu yeniden dene:
-          if (op.attempts < 2 && await _pushMissingParent(op, e)) {
-            await db.bumpAttempts(op.id);
+          // Eksik üst satır (FK 23503): önce onu it, bunu yeniden dene.
+          final n = heals[op.id] ?? 0;
+          if (n < 2 && await _pushMissingParent(op, e)) {
+            heals[op.id] = n + 1;
             continue;
           }
           lastPushError =
-              '[${op.entity}:${op.rowUuid}] ${e.toString().split('\n').first}';
+              '[${op.entity}:${op.rowUuid}] ${e.toString().split('\n').first}${await _fkVerdict(op, e)}';
           await db.bumpAttempts(op.id);
           failed = true;
           break; // ilk hatada dur, sonrakiler sonraki turda
@@ -332,6 +337,77 @@ class Cloud {
         final r = pushRank(a.entity).compareTo(pushRank(b.entity));
         return r != 0 ? r : a.id.compareTo(b.id);
       });
+    }
+  }
+
+  /// FK hatasında hüküm cümlesi: referans yerelde var mı, bulutta var mı?
+  /// Tanı kartında görünür, kör tahmin biter.
+  Future<String> _fkVerdict(QueuedOp op, Object e) async {
+    final msg = e.toString();
+    if (!msg.contains('23503') && !msg.contains('foreign key')) return '';
+    final db = _db!, sb = _sb!;
+    try {
+      final payload = jsonDecode(op.payload) as Map<String, dynamic>;
+      // Hangi referanslar var? (entity'ye göre)
+      final refs = <String, String>{}; // tablo -> uuid
+      if (op.entity == 'products') {
+        final c = payload['category_uuid'] as String?;
+        final s = payload['supplier_uuid'] as String?;
+        if (c != null) refs['categories'] = c;
+        if (s != null) refs['suppliers'] = s;
+      } else if (op.entity == 'sale_items') {
+        final s = payload['sale_uuid'] as String?;
+        final p = payload['product_uuid'] as String?;
+        if (s != null) refs['sales'] = s;
+        if (p != null) refs['products'] = p;
+      } else if (op.entity == 'stock_movements') {
+        final p = payload['product_uuid'] as String?;
+        if (p != null) refs['products'] = p;
+      } else {
+        return '';
+      }
+      if (refs.isEmpty) return ' (boş referans)';
+      final parts = <String>[];
+      for (final entry in refs.entries) {
+        final table = entry.key;
+        final uuid = entry.value;
+        var local = '?';
+        try {
+          final row = await sb
+              .from(table)
+              .select('uuid')
+              .eq('uuid', uuid)
+              .maybeSingle();
+          // Yerel kontrol tabloya göre:
+          var lfound = false;
+          if (table == 'categories') {
+            lfound = await (db.select(db.categories)
+                      ..where((t) => t.uuid.equals(uuid)))
+                    .getSingleOrNull() !=
+                null;
+          } else if (table == 'suppliers') {
+            lfound = await (db.select(db.suppliers)
+                      ..where((t) => t.uuid.equals(uuid)))
+                    .getSingleOrNull() !=
+                null;
+          } else if (table == 'products') {
+            lfound = await db.productByUuid(uuid) != null;
+          } else if (table == 'sales') {
+            lfound = await (db.select(db.sales)
+                      ..where((t) => t.uuid.equals(uuid)))
+                    .getSingleOrNull() !=
+                null;
+          }
+          local = lfound ? 'VAR' : 'YOK';
+          parts.add(
+              '$table=${uuid.substring(0, 8)}: localde $local, bulutta ${row == null ? 'YOK' : 'VAR'}');
+        } catch (_) {
+          parts.add('$table: bakılamadı');
+        }
+      }
+      return ' | FK: ${parts.join('; ')}';
+    } catch (_) {
+      return '';
     }
   }
 
