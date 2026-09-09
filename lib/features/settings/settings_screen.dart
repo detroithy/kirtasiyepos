@@ -8,6 +8,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../../core/sync/cloud.dart';
+import '../../core/theme/app_theme.dart';
+import '../admin/admin_gate.dart';
 
 /// Yedekleme + bulut senkron + donanım + bilgi ekranı.
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -25,6 +27,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
+          Card(
+            color: PosColors.navy,
+            child: ListTile(
+              leading:
+                  const Icon(Icons.admin_panel_settings, color: Colors.white),
+              title: const Text('Yönetim Paneli',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold)),
+              subtitle: const Text(
+                  'Z raporu, denetim izi, toplu fiyat, veri aktarımı',
+                  style: TextStyle(color: Colors.white70)),
+              trailing: const Icon(Icons.chevron_right,
+                  color: Colors.white),
+              onTap: () => openAdmin(context),
+            ),
+          ),
           const CloudCard(),
           const DiagCard(),
           Card(

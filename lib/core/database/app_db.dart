@@ -1223,6 +1223,19 @@ class AppDb extends _$AppDb {
 
   Future<List<Category>> allCategories() => select(categories).get();
 
+  /// Denetim listeleri için ad çözümleme (silinmişse null).
+  Future<String?> productName(int id) async {
+    final p = await (select(products)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    return p?.name;
+  }
+
+  Future<String?> supplierName(int id) async {
+    final s = await (select(suppliers)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    return s?.name;
+  }
+
   /// Ürünü yumuşak sil (uzaklara bayrak olarak yayılır).
   Future<void> softDeleteProduct(int productId) {
     return transaction(() async {
@@ -1535,6 +1548,24 @@ class AppDb extends _$AppDb {
     return (select(supplierLedger)
           ..where((t) => t.supplierId.equals(supplierId))
           ..orderBy([(t) => OrderingTerm.desc(t.date)]))
+        .get();
+  }
+
+  /// Denetim izi için son defter satırları (tümü, yeniden eskiye).
+  Future<List<LedgerEntry>> recentLedgerEntries({int limit = 100}) {
+    return (select(supplierLedger)
+          ..orderBy([(t) => OrderingTerm.desc(t.date)])
+          ..limit(limit))
+        .get();
+  }
+
+  /// Belirli günün fişleri (Z raporu listesi).
+  Future<List<Sale>> salesOnDay(DateTime day) {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+    return (select(sales)
+          ..where((t) => t.date.isBetweenValues(start, end))
+          ..orderBy([(t) => OrderingTerm.asc(t.date)]))
         .get();
   }
 
