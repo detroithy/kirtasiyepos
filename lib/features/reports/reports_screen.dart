@@ -210,47 +210,14 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                     Card(
                       child: Padding(
                         padding: const EdgeInsets.all(12),
-                        child: s.payTotals.isEmpty
+                        child: (s.payTotals.isEmpty &&
+                                    s.payCounts.isEmpty)
                             ? const Text('Satış yok.')
                             : Column(
                                 children: [
                                   _payBar(s),
                                   const SizedBox(height: 8),
-                                  ...s.payTotals.entries.map((e) {
-                                    final count =
-                                        s.payCounts[e.key] ?? 0;
-                                    final pct = s.total > 0
-                                        ? e.value / s.total * 100
-                                        : 0.0;
-                                    return Padding(
-                                      padding:
-                                          const EdgeInsets.symmetric(
-                                              vertical: 4),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            width: 10,
-                                            height: 10,
-                                            decoration: BoxDecoration(
-                                              color: _payColor(
-                                                  e.key),
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                      2),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                              child: Text(
-                                                  '${_payLabel(e.key)} • $count işlem (%${pct.toStringAsFixed(1)})')),
-                                          Text(money(e.value),
-                                              style: const TextStyle(
-                                                  fontWeight:
-                                                      FontWeight.bold)),
-                                        ],
-                                      ),
-                                    );
-                                  }),
+                                  ..._payRows(s),
                                 ],
                               ),
                       ),
@@ -278,19 +245,63 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
           fontWeight: FontWeight.w700,
           color: PosColors.navy));
 
-  Color _payColor(String type) =>
-      type == 'kart' ? PosColors.navy : PosColors.amber;
+  Color _payColor(String type) => switch (type) {
+        'kart' => PosColors.navy,
+        'cari' => PosColors.critTx,
+        'parcali' => PosColors.royal,
+        _ => PosColors.amber,
+      };
 
-  String _payLabel(String type) =>
-      type == 'kart' ? 'Kredi Kartı' : 'Nakit';
+  String _payLabel(String type) => switch (type) {
+        'kart' => 'Kredi Kartı',
+        'cari' => 'Cari (açık veresiye)',
+        'parcali' => 'Parçalı fiş',
+        _ => 'Nakit',
+      };
+
+  /// Tutar + adet satırları (parçalı adedi de görünür).
+  List<Widget> _payRows(RangeSummary s) {
+    final keys = {...s.payTotals.keys, ...s.payCounts.keys};
+    return keys.map((k) {
+      final value = s.payTotals[k] ?? 0;
+      final count = s.payCounts[k] ?? 0;
+      final pct =
+          s.total > 0 ? value / s.total * 100 : 0.0;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: _payColor(k),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+                child: Text(
+                    '${_payLabel(k)} • $count işlem (%${pct.toStringAsFixed(1)})')),
+            Text(money(value),
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
+    }).toList();
+  }
 
   Widget _payBar(RangeSummary s) {
-    if (s.total <= 0) return const SizedBox.shrink();
+    final sum =
+        s.payTotals.values.fold(0.0, (a, b) => a + b);
+    if (sum <= 0) return const SizedBox.shrink();
     return ClipRRect(
       borderRadius: BorderRadius.circular(4),
       child: Row(
         children: s.payTotals.entries.map((e) {
-          final flex = (e.value / s.total * 1000).round().clamp(1, 1000);
+          final flex =
+              (e.value / sum * 1000).round().clamp(1, 1000);
           return Expanded(
             flex: flex,
             child: Container(height: 10, color: _payColor(e.key)),
@@ -307,10 +318,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 _start, _end.add(const Duration(days: 1))))
             ..orderBy([(t) => drift.OrderingTerm.asc(t.date)]))
           .get();
-      final buf = StringBuffer('FisNo;Tarih;Toplam;KDV;Kar;Indirim;Odeme\n');
+      final buf = StringBuffer(
+          'FisNo;Tarih;Toplam;KDV;Kar;Indirim;Odeme;Musteri;Nakit;Kart;Tahsil\n');
       for (final s in sales) {
         buf.writeln(
-            '${s.receiptNo};${fdate(s.date)};${s.total};${s.kdvTotal};${s.profitTotal};${s.discount};${s.paymentType}');
+            '${s.receiptNo};${fdate(s.date)};${s.total};${s.kdvTotal};${s.profitTotal};${s.discount};${s.paymentType};${s.customer};${s.cashAmount};${s.cardAmount};${s.paid}');
       }
       final dir = await getApplicationDocumentsDirectory();
       final file = File(

@@ -47,6 +47,10 @@ void main() {
 
     final sales = await db.select(db.sales).get();
     expect(sales.single.uuid, items.single.saleUuid);
+    // v3: eski nakit fiş ödenmiş sayılır:
+    expect(sales.single.paid, 30.0);
+    expect(sales.single.cashAmount, 30.0);
+    expect(sales.single.customer, '');
 
     // Yeni tablolar hazır:
     expect(await db.pendingCount(), 0);

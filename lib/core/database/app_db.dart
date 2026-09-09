@@ -89,6 +89,13 @@ class Sales extends Table {
   RealColumn get discount => real().withDefault(const Constant(0))();
   TextColumn get paymentType => text().withDefault(const Constant('nakit'))();
   IntColumn get itemCount => integer().withDefault(const Constant(0))();
+  // --- Ödeme detayı (parçalı/cari) ---
+  RealColumn get cashAmount => real().withDefault(const Constant(0))();
+  RealColumn get cardAmount => real().withDefault(const Constant(0))();
+  TextColumn get customer => text().withDefault(const Constant(''))();
+  RealColumn get paid => real().withDefault(const Constant(0))();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
   // --- Faz-3 senkron ---
   TextColumn get uuid => text().unique()();
   TextColumn get originDevice =>
@@ -172,7 +179,7 @@ class AppDb extends _$AppDb {
   String deviceCode = 'K1';
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -222,6 +229,27 @@ class AppDb extends _$AppDb {
               await customStatement(
                   'CREATE UNIQUE INDEX ${t}_uuid ON $t(uuid)');
             }
+          }
+          if (from < 3) {
+            // Hepsi sabit default'lu -> ADD COLUMN serbest.
+            Future<void> add(String sql) => customStatement(sql);
+            await add(
+                'ALTER TABLE sales ADD COLUMN cash_amount REAL NOT NULL DEFAULT 0.0');
+            await add(
+                'ALTER TABLE sales ADD COLUMN card_amount REAL NOT NULL DEFAULT 0.0');
+            await add(
+                'ALTER TABLE sales ADD COLUMN customer TEXT NOT NULL DEFAULT \'\'');
+            await add(
+                'ALTER TABLE sales ADD COLUMN paid REAL NOT NULL DEFAULT 0.0');
+            await add(
+                'ALTER TABLE sales ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0');
+            // Eski fişler ödenmiş sayılır, tarihi satış günü olur:
+            await customStatement(
+                'UPDATE sales SET paid = total, cash_amount = total, updated_at = date WHERE payment_type = \'nakit\'');
+            await customStatement(
+                'UPDATE sales SET paid = total, card_amount = total, updated_at = date WHERE payment_type = \'kart\'');
+            await customStatement(
+                'UPDATE sales SET updated_at = date WHERE updated_at = 0');
           }
         },
       );
@@ -362,6 +390,11 @@ class AppDb extends _$AppDb {
         'discount': s.discount,
         'payment_type': s.paymentType,
         'item_count': s.itemCount,
+        'cash_amount': s.cashAmount,
+        'card_amount': s.cardAmount,
+        'customer': s.customer,
+        'paid': s.paid,
+        'updated_at': s.updatedAt.toIso8601String(),
         'origin_device': s.originDevice,
       };
 
@@ -532,15 +565,32 @@ class AppDb extends _$AppDb {
     }
   }
 
-  /// Uzak satışı (satırlarıyla) uygula. Varsa atla (değişmez kayıt).
+  /// Uzak satışı (satırlarıyla) uygula. Yoksa ekler; varsa SADECE
+  /// ödeme alanlarını LWW ile günceller (tutar/satırlar değişmez).
   Future<void> applySaleDoc(
       Map<String, dynamic> s, List<Map<String, dynamic>> items) async {
     final uuid = s['uuid'] as String;
     final exists = await (select(sales)
           ..where((t) => t.uuid.equals(uuid)))
         .getSingleOrNull();
-    if (exists != null) return;
     double d(dynamic v) => (v as num?)?.toDouble() ?? 0;
+    final remoteUpdated =
+        DateTime.tryParse(s['updated_at'] as String? ?? '');
+    if (exists != null) {
+      if (remoteUpdated != null &&
+          remoteUpdated.isAfter(exists.updatedAt)) {
+        await (update(sales)..where((t) => t.id.equals(exists.id)))
+            .write(SalesCompanion(
+          paymentType: Value(s['payment_type'] as String? ?? 'nakit'),
+          cashAmount: Value(d(s['cash_amount'])),
+          cardAmount: Value(d(s['card_amount'])),
+          customer: Value(s['customer'] as String? ?? ''),
+          paid: Value(d(s['paid'])),
+          updatedAt: Value(remoteUpdated),
+        ));
+      }
+      return;
+    }
     final saleId = await into(sales).insert(SalesCompanion.insert(
       receiptNo: s['receipt_no'] as String,
       date: Value(
@@ -551,6 +601,11 @@ class AppDb extends _$AppDb {
       discount: Value(d(s['discount'])),
       paymentType: Value(s['payment_type'] as String? ?? 'nakit'),
       itemCount: Value((s['item_count'] as num?)?.toInt() ?? items.length),
+      cashAmount: Value(d(s['cash_amount'])),
+      cardAmount: Value(d(s['card_amount'])),
+      customer: Value(s['customer'] as String? ?? ''),
+      paid: Value(d(s['paid'])),
+      updatedAt: Value(remoteUpdated ?? DateTime.now()),
       uuid: uuid,
       originDevice: Value(s['origin_device'] as String? ?? '?'),
     ));
@@ -717,6 +772,11 @@ class AppDb extends _$AppDb {
     required double profitTotal,
     double discount = 0,
     String paymentType = 'nakit',
+    double cashAmount = 0,
+    double cardAmount = 0,
+    String customer = '',
+    double paid = -1,
+    String? receiptNo,
   }) {
     return transaction(() async {
       final count = await (selectOnly(sales)
@@ -724,16 +784,36 @@ class AppDb extends _$AppDb {
           .map((r) => r.read(sales.id.count()) ?? 0)
           .getSingle();
       final saleUuid = newUuid();
-      final receiptNo =
+      // Ödeme dağılımı: verilmediyse tipe göre otomatik.
+      var cash = cashAmount;
+      var card = cardAmount;
+      if (paymentType == 'nakit' && cash == 0 && card == 0) {
+        cash = total;
+      } else if (paymentType == 'kart' && cash == 0 && card == 0) {
+        card = total;
+      } else if (paymentType == 'cari') {
+        cash = 0;
+        card = 0;
+      }
+      final paidAmount = (paid < 0
+              ? (paymentType == 'cari' ? 0.0 : total)
+              : paid.clamp(0, total))
+          .toDouble();
+      final no = receiptNo ??
           '$deviceCode-FS-${DateTime.now().millisecondsSinceEpoch}-${count + 1}';
       final saleId = await into(sales).insert(SalesCompanion.insert(
-        receiptNo: receiptNo,
+        receiptNo: no,
         total: Value(total),
         kdvTotal: Value(kdvTotal),
         profitTotal: Value(profitTotal),
         discount: Value(discount),
         paymentType: Value(paymentType),
         itemCount: Value(items.length),
+        cashAmount: Value(cash),
+        cardAmount: Value(card),
+        customer: Value(customer),
+        paid: Value(paidAmount),
+        updatedAt: Value(DateTime.now()),
         uuid: saleUuid,
         originDevice: Value(deviceCode),
       ));
@@ -787,7 +867,7 @@ class AppDb extends _$AppDb {
             qty: -item.qty.value,
             prevStock: prod.stock,
             newStock: newStock,
-            note: Value(receiptNo),
+            note: Value(no),
             uuid: movUuid,
           ));
           await enqueue(table: 'stock_movements', rowUuid: movUuid, payload: {
@@ -797,7 +877,7 @@ class AppDb extends _$AppDb {
             'qty': -item.qty.value,
             'prev_stock': prod.stock,
             'new_stock': newStock,
-            'note': receiptNo,
+            'note': no,
             'date': DateTime.now().toIso8601String(),
           });
           final updated = await (select(products)
@@ -809,7 +889,7 @@ class AppDb extends _$AppDb {
               payload: await productPayload(updated));
         }
       }
-      return SaleResult(id: saleId, receiptNo: receiptNo);
+      return SaleResult(id: saleId, receiptNo: no);
     });
   }
 
@@ -920,6 +1000,45 @@ class AppDb extends _$AppDb {
     });
   }
 
+  /// Veresiye tahsilatı: paid artar, fiş kuyrukla buluta yayılır.
+  /// (Ciro satış gününe yazılmıştır; tahsilat ciroyu iki kez saymaz.)
+  Future<void> collectDebt(
+      {required int saleId, required double amount}) {
+    return transaction(() async {
+      final s = await (select(sales)
+            ..where((t) => t.id.equals(saleId)))
+          .getSingle();
+      final newPaid = (s.paid + amount).clamp(0.0, s.total);
+      await (update(sales)..where((t) => t.id.equals(saleId))).write(
+        SalesCompanion(
+          paid: Value(newPaid),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      final fresh = await (select(sales)
+            ..where((t) => t.id.equals(saleId)))
+          .getSingle();
+      await enqueue(
+          table: 'sales',
+          rowUuid: fresh.uuid,
+          payload: salePayload(fresh));
+    });
+  }
+
+  /// Açık veresiyeler (ödenmemiş cari fişler, yeniden eskiye).
+  Future<List<Sale>> openDebts() async {
+    final all = await (select(sales)
+          ..where((t) => t.paymentType.equals('cari'))
+          ..orderBy([(t) => OrderingTerm.desc(t.date)]))
+        .get();
+    return all.where((s) => s.paid < s.total).toList();
+  }
+
+  Future<double> openDebtsTotal() async {
+    final list = await openDebts();
+    return list.fold<double>(0.0, (s, r) => s + (r.total - r.paid));
+  }
+
   /// Günlük özet: ciro, kdv, kar, fiş sayısı.
   Future<DaySummary> daySummary(DateTime day) async {
     final start = DateTime(day.year, day.month, day.day);
@@ -961,7 +1080,13 @@ class AppDb extends _$AppDb {
     final payTotals = <String, double>{};
     final payCounts = <String, int>{};
     for (final r in rows) {
-      payTotals[r.paymentType] = (payTotals[r.paymentType] ?? 0) + r.total;
+      // Parçalı fişin nakit/kart kısımları ilgili toplama yazılır.
+      payTotals['nakit'] = (payTotals['nakit'] ?? 0) + r.cashAmount;
+      payTotals['kart'] = (payTotals['kart'] ?? 0) + r.cardAmount;
+      if (r.paymentType == 'cari') {
+        payTotals['cari'] =
+            (payTotals['cari'] ?? 0) + (r.total - r.paid);
+      }
       payCounts[r.paymentType] = (payCounts[r.paymentType] ?? 0) + 1;
     }
     // Satış yoksa IN () sorgusu SQLite hatası verir — atla.

@@ -137,3 +137,13 @@ create policy "auth_all" on expenses
 -- ---------- Realtime (karşı cihaza anlık yansıma) ----------
 alter publication supabase_realtime add table
   categories, suppliers, products, stock_movements, sales, sale_items, expenses;
+
+-- ============================================================
+-- v3 eklentisi (parçalı/cari): ilk kurulumda üstteki CREATE'ler
+-- zaten içerir; MEVCUT projeye sadece aşağıdakileri çalıştırın.
+-- ============================================================
+alter table sales add column if not exists cash_amount double precision not null default 0;
+alter table sales add column if not exists card_amount double precision not null default 0;
+alter table sales add column if not exists customer text not null default '';
+alter table sales add column if not exists paid double precision not null default 0;
+alter table sales add column if not exists updated_at timestamptz not null default now();

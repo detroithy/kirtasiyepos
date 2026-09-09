@@ -108,6 +108,86 @@ void main() {
         {'sales', 'sale_items', 'stock_movements', 'products'});
   });
 
+  test('parçalı + cari + tahsilat akışı', () async {
+    final p = (await db.searchProducts('Kurşun Kalem')).single;
+
+    Future<int> sell({
+      required String type,
+      required double total,
+      double cash = 0,
+      double card = 0,
+      String customer = '',
+    }) async {
+      final r = await db.completeSale(
+        items: [
+          SaleItemsCompanion.insert(
+            saleId: 0,
+            productId: drift.Value(p.id),
+            name: p.name,
+            qty: 2,
+            unitPrice: 15,
+            kdvRate: drift.Value(20),
+            kdvAmount: drift.Value(5),
+            buyPriceSnapshot: drift.Value(8),
+            profit: drift.Value(9),
+            uuid: newUuid(),
+            saleUuid: const drift.Value(''),
+          ),
+        ],
+        total: total,
+        kdvTotal: 5,
+        profitTotal: 9,
+        paymentType: type,
+        cashAmount: cash,
+        cardAmount: card,
+        customer: customer,
+      );
+      return r.id;
+    }
+
+    // Parçalı: 10 nakit + 20 kart
+    await sell(type: 'parcali', total: 30, cash: 10, card: 20);
+    // Cari: Ahmet'e 30 veresiye
+    final cariId =
+        await sell(type: 'cari', total: 30, customer: 'Ahmet');
+
+    final r = await db.rangeSummary(
+      DateTime.now().subtract(const Duration(days: 1)),
+      DateTime.now(),
+    );
+    expect(r.payTotals['nakit'], 10);
+    expect(r.payTotals['kart'], 20);
+    expect(r.payTotals['cari'], 30);
+    expect(r.payCounts['parcali'], 1);
+    expect(r.payCounts['cari'], 1);
+
+    // Borç defteri + kısmi tahsilat:
+    expect(await db.openDebtsTotal(), 30);
+    await db.collectDebt(saleId: cariId, amount: 12);
+    expect(await db.openDebtsTotal(), 18);
+    final debts = await db.openDebts();
+    expect(debts.single.paid, 12);
+
+    // Uzak tahsilat LWW ile gelir:
+    final local =
+        await (db.select(db.sales)..where((t) => t.id.equals(cariId)))
+            .getSingle();
+    await db.applySaleDoc(
+      {
+        ...db.salePayload(local),
+        'paid': 30.0,
+        'updated_at':
+            DateTime.now().add(const Duration(minutes: 5)).toIso8601String(),
+      },
+      [],
+    );
+    final after =
+        await (db.select(db.sales)..where((t) => t.id.equals(cariId)))
+            .getSingle();
+    expect(after.paid, 30);
+    expect(await db.openDebtsTotal(), 0);
+  });
+
   test('yumuşak silme listeden düşürür', () async {
     final p = (await db.searchProducts('Kurşun Kalem')).single;
     await db.softDeleteProduct(p.id);

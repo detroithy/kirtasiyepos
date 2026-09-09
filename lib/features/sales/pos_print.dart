@@ -5,8 +5,7 @@ import 'package:printing/printing.dart';
 import '../../core/utils/money.dart';
 
 /// Satış fişi satır modeli (POS sepetinden alınır).
-class ReceiptLine {
-  final String name;
+class ReceiptLine {  final String name;
   final double qty;
   final double unitPrice;
   final double kdvRate;
@@ -16,6 +15,16 @@ class ReceiptLine {
     required this.unitPrice,
     required this.kdvRate,
   });
+}
+
+String _payText(String type, String customer) {
+  return switch (type) {
+    'kart' => 'Odeme: Kredi Karti',
+    'parcali' => 'Odeme: Parcali (Nakit+Kart)',
+    'cari' =>
+      'Odeme: Cari${customer.isNotEmpty ? ' ($customer)' : ''}',
+    _ => 'Odeme: Nakit',
+  };
 }
 
 /// 80mm termal fiş PDF'i + yazdırma.
@@ -28,6 +37,9 @@ Future<void> printReceipt({
   required double profitTotal,
   required String paymentType,
   double paid = 0,
+  double cash = 0,
+  double card = 0,
+  String customer = '',
 }) async {
   final doc = pw.Document();
   final mono = pw.TextStyle(font: pw.Font.courier(), fontSize: 9);
@@ -96,10 +108,20 @@ Future<void> printReceipt({
               mainAxisAlignment:
                   pw.MainAxisAlignment.spaceBetween,
               children: [
-                pw.Text(
-                    'Odeme: ${paymentType == 'kart' ? 'Kredi Karti' : 'Nakit'}',
+                pw.Text(_payText(paymentType, customer),
                     style: mono),
               ]),
+          if (paymentType == 'parcali') ...[
+            pw.Row(
+                mainAxisAlignment:
+                    pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Nakit: ${money(cash)}',
+                      style: mono),
+                  pw.Text('Kart: ${money(card)}',
+                      style: mono),
+                ]),
+          ],
           if (paid > 0)
             pw.Row(
                 mainAxisAlignment:

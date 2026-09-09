@@ -4,6 +4,7 @@ import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app.dart';
 import '../../core/database/app_db.dart';
@@ -11,6 +12,7 @@ import '../../core/sync/cloud.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 import '../products/quick_add.dart';
+import 'cari_defter_screen.dart';
 import 'pos_print.dart';
 import 'scan_screen.dart';
 
@@ -20,6 +22,16 @@ class CartLine {
   double qty;
   CartLine(this.product, [this.qty = 1]);
 }
+
+/// Tezgah üstü hızlı hizmetler (stoksuz, KDV %20 varsayılır).
+const List<(String, double)> quickServices = [
+  ('S/B Çıktı (A4)', 2.5),
+  ('Renkli Baskı (A4)', 7.5),
+  ('Spiral Ciltleme', 35.0),
+  ('Laminasyon', 20.0),
+];
+
+const _receiptSeqKey = 'receipt_seq';
 
 class PosScreen extends ConsumerStatefulWidget {
   const PosScreen({super.key});
@@ -37,8 +49,66 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   String _payment = 'nakit';
   bool _busy = false;
   String _lastQuery = '';
+  // Parçalı/cari detayları:
+  double _cashSplit = 0;
+  double _cardSplit = 0;
+  String _customer = '';
+  String _receiptPreview = '';
 
   AppDb get _db => ref.read(dbProvider);
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshPreview();
+  }
+
+  /// Sıradaki fiş no önizlemesi (K1-0007...).
+  Future<void> _refreshPreview() async {
+    final prefs = await SharedPreferences.getInstance();
+    final seq = prefs.getInt(_receiptSeqKey) ?? await _salesCount() + 1;
+    if (mounted) {
+      setState(() =>
+          _receiptPreview = '${_db.deviceCode}-${seq.toString().padLeft(4, '0')}');
+    }
+  }
+
+  Future<int> _salesCount() async {
+    return (await (_db.selectOnly(_db.sales)
+          ..addColumns([_db.sales.id.count()]))
+        .map((r) => r.read(_db.sales.id.count()) ?? 0)
+        .getSingle());
+  }
+
+  /// Satışta harcanan fiş no: sayaçtan alıp bir artırır.
+  Future<String> _takeReceiptNo() async {
+    final prefs = await SharedPreferences.getInstance();
+    var seq = prefs.getInt(_receiptSeqKey) ?? await _salesCount() + 1;
+    await prefs.setInt(_receiptSeqKey, seq + 1);
+    return '${_db.deviceCode}-${seq.toString().padLeft(4, '0')}';
+  }
+
+  /// Hizmetler DB'de tutulmaz; sepete sentetik ürün olarak girer (id<0).
+  void _addService(int index) {
+    final now = DateTime.now();
+    final svc = quickServices[index];
+    _addToCart(Product(
+      id: -(index + 1),
+      name: svc.$1,
+      unit: 'adet',
+      buyPrice: 0,
+      sellPrice: svc.$2,
+      kdvRate: 20,
+      stock: 0,
+      criticalLevel: 0,
+      createdAt: now,
+      updatedAt: now,
+      syncStatus: 0,
+      uuid: 'svc-$index',
+      originDevice: _db.deviceCode,
+      isDeleted: false,
+    ));
+  }
 
   double get _total =>
       _cart.fold(0, (s, l) => s + l.product.sellPrice * l.qty);
@@ -92,7 +162,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         final kar = satirKar(p.sellPrice, p.buyPrice, p.kdvRate, l.qty);
         return SaleItemsCompanion.insert(
           saleId: 0, // completeSale içinde gerçek id yazılır
-          productId: drift.Value(p.id),
+          productId: p.id <= 0
+              ? const drift.Value<int?>(null) // hizmet: stoksuz
+              : drift.Value(p.id),
           barcode: drift.Value(p.barcode),
           name: p.name,
           qty: l.qty,
@@ -122,23 +194,58 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       final saleTotal = _total;
       final saleKdv = _kdv;
       final salePay = _payment;
+      // Parçalı/cari doğrulama:
+      var cash = _cashSplit;
+      var card = _cardSplit;
+      var customer = _customer;
+      if (salePay == 'parcali') {
+        if ((cash + card - saleTotal).abs() > 0.01 ||
+            cash < 0 ||
+            card < 0) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content:
+                  Text('Sepet değişti — parçalı tutarları yeniden girin.')));
+          await _parcaliDialog();
+          return;
+        }
+      } else if (salePay == 'cari' && customer.trim().isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Cari satış için müşteri adı gerekli.')));
+        await _cariDialog();
+        return;
+      }
+      final receiptNo = await _takeReceiptNo();
       final result = await _db.completeSale(
         items: items,
         total: saleTotal,
         kdvTotal: saleKdv,
         profitTotal: profit,
         paymentType: salePay,
+        cashAmount: cash,
+        cardAmount: card,
+        customer: customer.trim(),
+        receiptNo: receiptNo,
       );
-      final paid =
+      final paidRaw =
           double.tryParse(_paidCtrl.text.replaceAll(',', '.')) ?? 0;
+      // Nakit: elden alınan; parçalı: toplam (nakit+kart); cari: 0.
+      final paid = salePay == 'nakit'
+          ? paidRaw
+          : (salePay == 'parcali' ? cash + card : 0.0);
       final change = paid - saleTotal;
       if (!mounted) return;
       setState(() {
         _cart.clear();
         _results = [];
         _paidCtrl.clear();
+        _cashSplit = 0;
+        _cardSplit = 0;
+        _customer = '';
       });
       Cloud.instance.refreshPending();
+      _refreshPreview();
       _receiptDialog(
         receiptNo: result.receiptNo,
         lines: lines,
@@ -147,6 +254,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         payment: salePay,
         paid: paid,
         change: change,
+        cash: cash,
+        card: card,
+        customer: customer.trim(),
       );
     } catch (e) {
       if (!mounted) return;
@@ -158,6 +268,103 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     }
   }
 
+  /// Ödeme tipi seçimi: parçalı/cari detay ister, vazgeçilirse eski tip kalır.
+  Future<void> _onPaymentSelected(String v) async {
+    if (v == 'parcali') {
+      final ok = await _parcaliDialog();
+      if (!ok) return;
+    } else if (v == 'cari') {
+      final ok = await _cariDialog();
+      if (!ok) return;
+    }
+    setState(() => _payment = v);
+  }
+
+  /// Parçalı ödeme: nakit tutarı gir, kart otomatik tamamlar.
+  Future<bool> _parcaliDialog() async {
+    if (_cart.isEmpty) return false;
+    final ctrl = TextEditingController(
+        text: _cashSplit > 0
+            ? _cashSplit.toString()
+            : _total.toString());
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Parçalı Ödeme • Toplam ${money(_total)}'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+          ],
+          decoration: const InputDecoration(
+              labelText: 'Nakit kısım ₺ (kalan karta)',
+              border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç')),
+          FilledButton(
+            onPressed: () {
+              final cash =
+                  double.tryParse(ctrl.text.replaceAll(',', '.'));
+              if (cash == null || cash < 0 || cash > _total) {
+                return;
+              }
+              _cashSplit = cash;
+              _cardSplit = _total - cash;
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Tamam'),
+          ),
+        ],
+      ),
+    );
+    return res == true;
+  }
+
+  /// Cari (veresiye): müşteri adı zorunlu.
+  Future<bool> _cariDialog() async {
+    final ctrl = TextEditingController(text: _customer);
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Cari Satış • Toplam ${money(_total)}'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textInputAction: TextInputAction.done,
+          decoration: const InputDecoration(
+              labelText: 'Müşteri adı *',
+              border: OutlineInputBorder()),
+          onSubmitted: (_) {
+            if (ctrl.text.trim().isNotEmpty) {
+              _customer = ctrl.text.trim();
+              Navigator.pop(ctx, true);
+            }
+          },
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç')),
+          FilledButton(
+            onPressed: () {
+              if (ctrl.text.trim().isEmpty) return;
+              _customer = ctrl.text.trim();
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Tamam'),
+          ),
+        ],
+      ),
+    );
+    return res == true;
+  }
+
   /// Satış sonrası fiş özeti + yazdırma.
   Future<void> _receiptDialog({
     required String receiptNo,
@@ -167,6 +374,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     required String payment,
     required double paid,
     required double change,
+    double cash = 0,
+    double card = 0,
+    String customer = '',
   }) async {
     await showDialog(
       context: context,
@@ -223,6 +433,24 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                             style: const TextStyle(
                                 fontWeight: FontWeight.bold)),
                       ]),
+                Text(_paymentLabel(payment, customer),
+                    style: const TextStyle(color: Colors.grey)),
+                if (payment == 'parcali') ...[
+                  Row(
+                      mainAxisAlignment:
+                          MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Nakit:'),
+                        Text(money(cash)),
+                      ]),
+                  Row(
+                      mainAxisAlignment:
+                          MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Kart:'),
+                        Text(money(card)),
+                      ]),
+                ],
               ],
             ),
           ),
@@ -244,6 +472,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   profitTotal: 0,
                   paymentType: payment,
                   paid: paid,
+                  cash: cash,
+                  card: card,
+                  customer: customer,
                 );
               } catch (e) {
                 if (mounted) {
@@ -255,12 +486,21 @@ class _PosScreenState extends ConsumerState<PosScreen> {
               _refocusSearch();
             },
             icon: const Icon(Icons.print),
-            label: const Text('Fişi Yazdır'),
+            label: const Text('Yazdır & Bitir'),
           ),
         ],
       ),
     );
     _refocusSearch();
+  }
+
+  String _paymentLabel(String p, String customer) {
+    return switch (p) {
+      'kart' => 'Ödeme: Kredi Kartı',
+      'parcali' => 'Ödeme: Parçalı',
+      'cari' => 'Ödeme: Cari${customer.isNotEmpty ? ' ($customer)' : ''}',
+      _ => 'Ödeme: Nakit',
+    };
   }
 
   @override
@@ -274,7 +514,20 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('KırtasiyePOS • Hızlı Satış')),
+      appBar: AppBar(
+        title: const Text('KırtasiyePOS • Hızlı Satış'),
+        actions: [
+          IconButton(
+            tooltip: 'Cari Defter (veresiye)',
+            icon: const Icon(Icons.book),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const CariDefterScreen()),
+            ),
+          ),
+        ],
+      ),
       body: LayoutBuilder(
         builder: (ctx, c) {
           // Dar ekran (telefon dikey): alt alta; geniş: yan yana.
@@ -282,6 +535,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             return Column(
               children: [
                 _searchField(),
+                _servicesStrip(),
                 Expanded(flex: 3, child: _resultsList()),
                 const Divider(height: 1),
                 Expanded(flex: 4, child: _cartPanel()),
@@ -296,6 +550,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 child: Column(
                   children: [
                     _searchField(),
+                    _servicesStrip(),
                     Expanded(child: _resultsList()),
                   ],
                 ),
@@ -306,6 +561,38 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           );
         },
       ),
+    );
+  }
+
+  /// Tezgah üstü hızlı hizmetler şeridi (yatay kayar, taşmaz).
+  Widget _servicesStrip() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(12, 4, 12, 4),
+          child: Text('Tezgah Üstü Hızlı Hizmetler',
+              style:
+                  TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+        ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: List.generate(quickServices.length, (i) {
+              final s = quickServices[i];
+              return Padding(
+                padding: const EdgeInsets.only(right: 8, bottom: 8),
+                child: ActionChip(
+                  avatar: const Icon(Icons.print_outlined, size: 18),
+                  label: Text('${s.$1} • ${money(s.$2)}'),
+                  onPressed: () => _addService(i),
+                ),
+              );
+            }),
+          ),
+        ),
+      ],
     );
   }
 
@@ -410,6 +697,21 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     );
   }
 
+  Widget _payChip(String value, String label, IconData icon) {
+    final sel = _payment == value;
+    return ChoiceChip(
+      label: Text(label),
+      avatar: Icon(icon,
+          size: 18, color: sel ? Colors.white : PosColors.navy),
+      selected: sel,
+      selectedColor: PosColors.navy,
+      labelStyle: TextStyle(
+          color: sel ? Colors.white : PosColors.navy,
+          fontWeight: FontWeight.bold),
+      onSelected: (_) => _onPaymentSelected(value),
+    );
+  }
+
   /// Sepet paneli: kendi içinde kayar, asla overflow vermez.
   Widget _cartPanel() {
     final paid =
@@ -423,9 +725,14 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             padding: const EdgeInsets.all(8),
             child: Row(
               children: [
-                Text('Sepet ($_count)',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const Spacer(),
+                Expanded(
+                  child: Text(
+                    'Sepet ($_count)${_receiptPreview.isEmpty ? '' : ' • Fiş $_receiptPreview'}',
+                    style: Theme.of(context).textTheme.titleMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
                 TextButton.icon(
                   onPressed: _cart.isEmpty
                       ? null
@@ -496,21 +803,35 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                           ?.copyWith(fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(height: 8),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(
-                        value: 'nakit',
-                        label: Text('Nakit'),
-                        icon: Icon(Icons.money)),
-                    ButtonSegment(
-                        value: 'kart',
-                        label: Text('Kart'),
-                        icon: Icon(Icons.credit_card)),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    _payChip('nakit', 'Nakit', Icons.money),
+                    _payChip('kart', 'Kart', Icons.credit_card),
+                    _payChip(
+                        'parcali', 'Parçalı', Icons.splitscreen),
+                    _payChip('cari', 'Cari', Icons.book),
                   ],
-                  selected: {_payment},
-                  onSelectionChanged: (s) =>
-                      setState(() => _payment = s.first),
                 ),
+                if (_payment == 'parcali')
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Nakit ${money(_cashSplit)} + Kart ${money(_cardSplit)}',
+                      style: const TextStyle(
+                          fontSize: 12, color: Colors.grey),
+                    ),
+                  ),
+                if (_payment == 'cari' && _customer.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Müşteri: $_customer',
+                      style: const TextStyle(
+                          fontSize: 12, color: Colors.grey),
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 if (_payment == 'nakit')
                   TextField(

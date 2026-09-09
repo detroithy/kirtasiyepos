@@ -2223,6 +2223,64 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _cashAmountMeta = const VerificationMeta(
+    'cashAmount',
+  );
+  @override
+  late final GeneratedColumn<double> cashAmount = GeneratedColumn<double>(
+    'cash_amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _cardAmountMeta = const VerificationMeta(
+    'cardAmount',
+  );
+  @override
+  late final GeneratedColumn<double> cardAmount = GeneratedColumn<double>(
+    'card_amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _customerMeta = const VerificationMeta(
+    'customer',
+  );
+  @override
+  late final GeneratedColumn<String> customer = GeneratedColumn<String>(
+    'customer',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _paidMeta = const VerificationMeta('paid');
+  @override
+  late final GeneratedColumn<double> paid = GeneratedColumn<double>(
+    'paid',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
   static const VerificationMeta _uuidMeta = const VerificationMeta('uuid');
   @override
   late final GeneratedColumn<String> uuid = GeneratedColumn<String>(
@@ -2256,6 +2314,11 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
     discount,
     paymentType,
     itemCount,
+    cashAmount,
+    cardAmount,
+    customer,
+    paid,
+    updatedAt,
     uuid,
     originDevice,
   ];
@@ -2330,6 +2393,36 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
         itemCount.isAcceptableOrUnknown(data['item_count']!, _itemCountMeta),
       );
     }
+    if (data.containsKey('cash_amount')) {
+      context.handle(
+        _cashAmountMeta,
+        cashAmount.isAcceptableOrUnknown(data['cash_amount']!, _cashAmountMeta),
+      );
+    }
+    if (data.containsKey('card_amount')) {
+      context.handle(
+        _cardAmountMeta,
+        cardAmount.isAcceptableOrUnknown(data['card_amount']!, _cardAmountMeta),
+      );
+    }
+    if (data.containsKey('customer')) {
+      context.handle(
+        _customerMeta,
+        customer.isAcceptableOrUnknown(data['customer']!, _customerMeta),
+      );
+    }
+    if (data.containsKey('paid')) {
+      context.handle(
+        _paidMeta,
+        paid.isAcceptableOrUnknown(data['paid']!, _paidMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
     if (data.containsKey('uuid')) {
       context.handle(
         _uuidMeta,
@@ -2392,6 +2485,26 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
         DriftSqlType.int,
         data['${effectivePrefix}item_count'],
       )!,
+      cashAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}cash_amount'],
+      )!,
+      cardAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}card_amount'],
+      )!,
+      customer: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}customer'],
+      )!,
+      paid: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}paid'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
       uuid: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}uuid'],
@@ -2419,6 +2532,11 @@ class Sale extends DataClass implements Insertable<Sale> {
   final double discount;
   final String paymentType;
   final int itemCount;
+  final double cashAmount;
+  final double cardAmount;
+  final String customer;
+  final double paid;
+  final DateTime updatedAt;
   final String uuid;
   final String originDevice;
   const Sale({
@@ -2431,6 +2549,11 @@ class Sale extends DataClass implements Insertable<Sale> {
     required this.discount,
     required this.paymentType,
     required this.itemCount,
+    required this.cashAmount,
+    required this.cardAmount,
+    required this.customer,
+    required this.paid,
+    required this.updatedAt,
     required this.uuid,
     required this.originDevice,
   });
@@ -2446,6 +2569,11 @@ class Sale extends DataClass implements Insertable<Sale> {
     map['discount'] = Variable<double>(discount);
     map['payment_type'] = Variable<String>(paymentType);
     map['item_count'] = Variable<int>(itemCount);
+    map['cash_amount'] = Variable<double>(cashAmount);
+    map['card_amount'] = Variable<double>(cardAmount);
+    map['customer'] = Variable<String>(customer);
+    map['paid'] = Variable<double>(paid);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
     map['uuid'] = Variable<String>(uuid);
     map['origin_device'] = Variable<String>(originDevice);
     return map;
@@ -2462,6 +2590,11 @@ class Sale extends DataClass implements Insertable<Sale> {
       discount: Value(discount),
       paymentType: Value(paymentType),
       itemCount: Value(itemCount),
+      cashAmount: Value(cashAmount),
+      cardAmount: Value(cardAmount),
+      customer: Value(customer),
+      paid: Value(paid),
+      updatedAt: Value(updatedAt),
       uuid: Value(uuid),
       originDevice: Value(originDevice),
     );
@@ -2482,6 +2615,11 @@ class Sale extends DataClass implements Insertable<Sale> {
       discount: serializer.fromJson<double>(json['discount']),
       paymentType: serializer.fromJson<String>(json['paymentType']),
       itemCount: serializer.fromJson<int>(json['itemCount']),
+      cashAmount: serializer.fromJson<double>(json['cashAmount']),
+      cardAmount: serializer.fromJson<double>(json['cardAmount']),
+      customer: serializer.fromJson<String>(json['customer']),
+      paid: serializer.fromJson<double>(json['paid']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       uuid: serializer.fromJson<String>(json['uuid']),
       originDevice: serializer.fromJson<String>(json['originDevice']),
     );
@@ -2499,6 +2637,11 @@ class Sale extends DataClass implements Insertable<Sale> {
       'discount': serializer.toJson<double>(discount),
       'paymentType': serializer.toJson<String>(paymentType),
       'itemCount': serializer.toJson<int>(itemCount),
+      'cashAmount': serializer.toJson<double>(cashAmount),
+      'cardAmount': serializer.toJson<double>(cardAmount),
+      'customer': serializer.toJson<String>(customer),
+      'paid': serializer.toJson<double>(paid),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'uuid': serializer.toJson<String>(uuid),
       'originDevice': serializer.toJson<String>(originDevice),
     };
@@ -2514,6 +2657,11 @@ class Sale extends DataClass implements Insertable<Sale> {
     double? discount,
     String? paymentType,
     int? itemCount,
+    double? cashAmount,
+    double? cardAmount,
+    String? customer,
+    double? paid,
+    DateTime? updatedAt,
     String? uuid,
     String? originDevice,
   }) => Sale(
@@ -2526,6 +2674,11 @@ class Sale extends DataClass implements Insertable<Sale> {
     discount: discount ?? this.discount,
     paymentType: paymentType ?? this.paymentType,
     itemCount: itemCount ?? this.itemCount,
+    cashAmount: cashAmount ?? this.cashAmount,
+    cardAmount: cardAmount ?? this.cardAmount,
+    customer: customer ?? this.customer,
+    paid: paid ?? this.paid,
+    updatedAt: updatedAt ?? this.updatedAt,
     uuid: uuid ?? this.uuid,
     originDevice: originDevice ?? this.originDevice,
   );
@@ -2544,6 +2697,15 @@ class Sale extends DataClass implements Insertable<Sale> {
           ? data.paymentType.value
           : this.paymentType,
       itemCount: data.itemCount.present ? data.itemCount.value : this.itemCount,
+      cashAmount: data.cashAmount.present
+          ? data.cashAmount.value
+          : this.cashAmount,
+      cardAmount: data.cardAmount.present
+          ? data.cardAmount.value
+          : this.cardAmount,
+      customer: data.customer.present ? data.customer.value : this.customer,
+      paid: data.paid.present ? data.paid.value : this.paid,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       uuid: data.uuid.present ? data.uuid.value : this.uuid,
       originDevice: data.originDevice.present
           ? data.originDevice.value
@@ -2563,6 +2725,11 @@ class Sale extends DataClass implements Insertable<Sale> {
           ..write('discount: $discount, ')
           ..write('paymentType: $paymentType, ')
           ..write('itemCount: $itemCount, ')
+          ..write('cashAmount: $cashAmount, ')
+          ..write('cardAmount: $cardAmount, ')
+          ..write('customer: $customer, ')
+          ..write('paid: $paid, ')
+          ..write('updatedAt: $updatedAt, ')
           ..write('uuid: $uuid, ')
           ..write('originDevice: $originDevice')
           ..write(')'))
@@ -2580,6 +2747,11 @@ class Sale extends DataClass implements Insertable<Sale> {
     discount,
     paymentType,
     itemCount,
+    cashAmount,
+    cardAmount,
+    customer,
+    paid,
+    updatedAt,
     uuid,
     originDevice,
   );
@@ -2596,6 +2768,11 @@ class Sale extends DataClass implements Insertable<Sale> {
           other.discount == this.discount &&
           other.paymentType == this.paymentType &&
           other.itemCount == this.itemCount &&
+          other.cashAmount == this.cashAmount &&
+          other.cardAmount == this.cardAmount &&
+          other.customer == this.customer &&
+          other.paid == this.paid &&
+          other.updatedAt == this.updatedAt &&
           other.uuid == this.uuid &&
           other.originDevice == this.originDevice);
 }
@@ -2610,6 +2787,11 @@ class SalesCompanion extends UpdateCompanion<Sale> {
   final Value<double> discount;
   final Value<String> paymentType;
   final Value<int> itemCount;
+  final Value<double> cashAmount;
+  final Value<double> cardAmount;
+  final Value<String> customer;
+  final Value<double> paid;
+  final Value<DateTime> updatedAt;
   final Value<String> uuid;
   final Value<String> originDevice;
   const SalesCompanion({
@@ -2622,6 +2804,11 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     this.discount = const Value.absent(),
     this.paymentType = const Value.absent(),
     this.itemCount = const Value.absent(),
+    this.cashAmount = const Value.absent(),
+    this.cardAmount = const Value.absent(),
+    this.customer = const Value.absent(),
+    this.paid = const Value.absent(),
+    this.updatedAt = const Value.absent(),
     this.uuid = const Value.absent(),
     this.originDevice = const Value.absent(),
   });
@@ -2635,6 +2822,11 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     this.discount = const Value.absent(),
     this.paymentType = const Value.absent(),
     this.itemCount = const Value.absent(),
+    this.cashAmount = const Value.absent(),
+    this.cardAmount = const Value.absent(),
+    this.customer = const Value.absent(),
+    this.paid = const Value.absent(),
+    this.updatedAt = const Value.absent(),
     required String uuid,
     this.originDevice = const Value.absent(),
   }) : receiptNo = Value(receiptNo),
@@ -2649,6 +2841,11 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     Expression<double>? discount,
     Expression<String>? paymentType,
     Expression<int>? itemCount,
+    Expression<double>? cashAmount,
+    Expression<double>? cardAmount,
+    Expression<String>? customer,
+    Expression<double>? paid,
+    Expression<DateTime>? updatedAt,
     Expression<String>? uuid,
     Expression<String>? originDevice,
   }) {
@@ -2662,6 +2859,11 @@ class SalesCompanion extends UpdateCompanion<Sale> {
       if (discount != null) 'discount': discount,
       if (paymentType != null) 'payment_type': paymentType,
       if (itemCount != null) 'item_count': itemCount,
+      if (cashAmount != null) 'cash_amount': cashAmount,
+      if (cardAmount != null) 'card_amount': cardAmount,
+      if (customer != null) 'customer': customer,
+      if (paid != null) 'paid': paid,
+      if (updatedAt != null) 'updated_at': updatedAt,
       if (uuid != null) 'uuid': uuid,
       if (originDevice != null) 'origin_device': originDevice,
     });
@@ -2677,6 +2879,11 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     Value<double>? discount,
     Value<String>? paymentType,
     Value<int>? itemCount,
+    Value<double>? cashAmount,
+    Value<double>? cardAmount,
+    Value<String>? customer,
+    Value<double>? paid,
+    Value<DateTime>? updatedAt,
     Value<String>? uuid,
     Value<String>? originDevice,
   }) {
@@ -2690,6 +2897,11 @@ class SalesCompanion extends UpdateCompanion<Sale> {
       discount: discount ?? this.discount,
       paymentType: paymentType ?? this.paymentType,
       itemCount: itemCount ?? this.itemCount,
+      cashAmount: cashAmount ?? this.cashAmount,
+      cardAmount: cardAmount ?? this.cardAmount,
+      customer: customer ?? this.customer,
+      paid: paid ?? this.paid,
+      updatedAt: updatedAt ?? this.updatedAt,
       uuid: uuid ?? this.uuid,
       originDevice: originDevice ?? this.originDevice,
     );
@@ -2725,6 +2937,21 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     if (itemCount.present) {
       map['item_count'] = Variable<int>(itemCount.value);
     }
+    if (cashAmount.present) {
+      map['cash_amount'] = Variable<double>(cashAmount.value);
+    }
+    if (cardAmount.present) {
+      map['card_amount'] = Variable<double>(cardAmount.value);
+    }
+    if (customer.present) {
+      map['customer'] = Variable<String>(customer.value);
+    }
+    if (paid.present) {
+      map['paid'] = Variable<double>(paid.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
     if (uuid.present) {
       map['uuid'] = Variable<String>(uuid.value);
     }
@@ -2746,6 +2973,11 @@ class SalesCompanion extends UpdateCompanion<Sale> {
           ..write('discount: $discount, ')
           ..write('paymentType: $paymentType, ')
           ..write('itemCount: $itemCount, ')
+          ..write('cashAmount: $cashAmount, ')
+          ..write('cardAmount: $cardAmount, ')
+          ..write('customer: $customer, ')
+          ..write('paid: $paid, ')
+          ..write('updatedAt: $updatedAt, ')
           ..write('uuid: $uuid, ')
           ..write('originDevice: $originDevice')
           ..write(')'))
@@ -6360,6 +6592,11 @@ typedef $$SalesTableCreateCompanionBuilder = SalesCompanion Function({
   Value<double> discount,
   Value<String> paymentType,
   Value<int> itemCount,
+  Value<double> cashAmount,
+  Value<double> cardAmount,
+  Value<String> customer,
+  Value<double> paid,
+  Value<DateTime> updatedAt,
   required String uuid,
   Value<String> originDevice,
 });
@@ -6373,6 +6610,11 @@ typedef $$SalesTableUpdateCompanionBuilder = SalesCompanion Function({
   Value<double> discount,
   Value<String> paymentType,
   Value<int> itemCount,
+  Value<double> cashAmount,
+  Value<double> cardAmount,
+  Value<String> customer,
+  Value<double> paid,
+  Value<DateTime> updatedAt,
   Value<String> uuid,
   Value<String> originDevice,
 });
@@ -6450,6 +6692,31 @@ class $$SalesTableFilterComposer extends Composer<_$AppDb, $SalesTable> {
 
   ColumnFilters<int> get itemCount => $composableBuilder(
     column: $table.itemCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get cashAmount => $composableBuilder(
+    column: $table.cashAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get cardAmount => $composableBuilder(
+    column: $table.cardAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get customer => $composableBuilder(
+    column: $table.customer,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get paid => $composableBuilder(
+    column: $table.paid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6542,6 +6809,31 @@ class $$SalesTableOrderingComposer extends Composer<_$AppDb, $SalesTable> {
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get cashAmount => $composableBuilder(
+    column: $table.cashAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get cardAmount => $composableBuilder(
+    column: $table.cardAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get customer => $composableBuilder(
+    column: $table.customer,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get paid => $composableBuilder(
+    column: $table.paid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get uuid => $composableBuilder(
     column: $table.uuid,
     builder: (column) => ColumnOrderings(column),
@@ -6591,6 +6883,25 @@ class $$SalesTableAnnotationComposer extends Composer<_$AppDb, $SalesTable> {
 
   GeneratedColumn<int> get itemCount =>
       $composableBuilder(column: $table.itemCount, builder: (column) => column);
+
+  GeneratedColumn<double> get cashAmount => $composableBuilder(
+    column: $table.cashAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get cardAmount => $composableBuilder(
+    column: $table.cardAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get customer =>
+      $composableBuilder(column: $table.customer, builder: (column) => column);
+
+  GeneratedColumn<double> get paid =>
+      $composableBuilder(column: $table.paid, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
   GeneratedColumn<String> get uuid =>
       $composableBuilder(column: $table.uuid, builder: (column) => column);
@@ -6663,6 +6974,11 @@ class $$SalesTableTableManager
                 Value<double> discount = const Value.absent(),
                 Value<String> paymentType = const Value.absent(),
                 Value<int> itemCount = const Value.absent(),
+                Value<double> cashAmount = const Value.absent(),
+                Value<double> cardAmount = const Value.absent(),
+                Value<String> customer = const Value.absent(),
+                Value<double> paid = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
                 Value<String> uuid = const Value.absent(),
                 Value<String> originDevice = const Value.absent(),
               }) => SalesCompanion(
@@ -6675,6 +6991,11 @@ class $$SalesTableTableManager
                 discount: discount,
                 paymentType: paymentType,
                 itemCount: itemCount,
+                cashAmount: cashAmount,
+                cardAmount: cardAmount,
+                customer: customer,
+                paid: paid,
+                updatedAt: updatedAt,
                 uuid: uuid,
                 originDevice: originDevice,
               ),
@@ -6689,6 +7010,11 @@ class $$SalesTableTableManager
                 Value<double> discount = const Value.absent(),
                 Value<String> paymentType = const Value.absent(),
                 Value<int> itemCount = const Value.absent(),
+                Value<double> cashAmount = const Value.absent(),
+                Value<double> cardAmount = const Value.absent(),
+                Value<String> customer = const Value.absent(),
+                Value<double> paid = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
                 required String uuid,
                 Value<String> originDevice = const Value.absent(),
               }) => SalesCompanion.insert(
@@ -6701,6 +7027,11 @@ class $$SalesTableTableManager
                 discount: discount,
                 paymentType: paymentType,
                 itemCount: itemCount,
+                cashAmount: cashAmount,
+                cardAmount: cardAmount,
+                customer: customer,
+                paid: paid,
+                updatedAt: updatedAt,
                 uuid: uuid,
                 originDevice: originDevice,
               ),
