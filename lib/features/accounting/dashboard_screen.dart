@@ -8,7 +8,6 @@ import '../../core/sync/cloud.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 import '../../core/widgets/kpi_card.dart';
-import '../admin/admin_gate.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   /// HomeShell sekmeye dönüldüğünde true olur (veri tazelenir).
@@ -36,11 +35,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       appBar: AppBar(
         title: const Text('KırtasiyePOS • Günlük Özet'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.admin_panel_settings),
-            tooltip: 'Yönetim Paneli',
-            onPressed: () => openAdmin(context),
-          ),
           IconButton(
             icon: const Icon(Icons.chevron_left),
             onPressed: () => setState(
