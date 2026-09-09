@@ -71,6 +71,8 @@ void main() {
     expect(sales.single.approvalCode, '');
     expect(sales.single.fiscalNo, '');
     expect(sales.single.posStatus, '');
+    // v6 para üstü kolonu boş gelir:
+    expect(sales.single.changeAmount, 0);
     await db.close();
     if (file.existsSync()) file.deleteSync();
   });

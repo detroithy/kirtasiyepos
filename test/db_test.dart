@@ -406,4 +406,52 @@ void main() {
     expect(r.returns, 15);
     expect(r.netProfit, closeTo(-5.5, 0.001));
   });
+
+  test('para üstü ayrı izlenir, kâra dokunmaz', () async {
+    final p = (await db.searchProducts('Kurşun Kalem')).single;
+    Future<void> sell(
+        {required double total,
+        required double kar,
+        double change = 0,
+        String no = ''}) async {
+      await db.completeSale(
+        items: [
+          SaleItemsCompanion.insert(
+            saleId: 0,
+            productId: drift.Value(p.id),
+            name: p.name,
+            qty: 2,
+            unitPrice: 15,
+            kdvRate: drift.Value(20),
+            kdvAmount: drift.Value(5),
+            buyPriceSnapshot: drift.Value(8),
+            profit: drift.Value(kar),
+            uuid: newUuid(),
+            saleUuid: const drift.Value(''),
+          ),
+        ],
+        total: total,
+        kdvTotal: 5,
+        profitTotal: kar,
+        change: change,
+        receiptNo: no.isEmpty ? null : no,
+      );
+    }
+
+    // 30'luk nakit satış, 20 üstü verildi:
+    await sell(total: 30, kar: 9, change: 20, no: 'K1-P1');
+    // Kartsız fişte üstü her zaman 0:
+    await sell(total: 30, kar: 9, no: 'K1-P2');
+    final day = await db.daySummary(DateTime.now());
+    expect(day.total, 60);
+    expect(day.profit, 18);
+    expect(day.change, 20);
+    // Kâr etkilenmedi:
+    expect(day.netProfit, 18 - day.expenses);
+    final r = await db.rangeSummary(
+      DateTime.now().subtract(const Duration(days: 1)),
+      DateTime.now(),
+    );
+    expect(r.change, 20);
+  });
 }

@@ -153,6 +153,31 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
                         ),
                       ),
                     if (s.returns > 0) const SizedBox(height: 12),
+                    if (s.change != 0)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.change_circle,
+                                  color: Colors.grey),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                    'Verilen para üstü (kârı etkilemez)',
+                                    style: TextStyle(
+                                        color: Colors.grey)),
+                              ),
+                              Text(money(s.change),
+                                  style: const TextStyle(
+                                      fontWeight:
+                                          FontWeight.bold)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    if (s.change != 0) const SizedBox(height: 12),
                     _sectionTitle('KDV Oranlarına Göre Dağılım'),
                     const SizedBox(height: 6),
                     Card(
@@ -355,10 +380,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
             ..orderBy([(t) => drift.OrderingTerm.asc(t.date)]))
           .get();
       final buf = StringBuffer(
-          'FisNo;Tarih;Toplam;KDV;Kar;Indirim;Odeme;Musteri;Nakit;Kart;Tahsil\n');
+          'FisNo;Tarih;Toplam;KDV;Kar;Indirim;Odeme;Musteri;Nakit;Kart;Tahsil;ParaUstu\n');
       for (final s in sales) {
         buf.writeln(
-            '${s.receiptNo};${fdate(s.date)};${s.total};${s.kdvTotal};${s.profitTotal};${s.discount};${s.paymentType};${s.customer};${s.cashAmount};${s.cardAmount};${s.paid}');
+            '${s.receiptNo};${fdate(s.date)};${s.total};${s.kdvTotal};${s.profitTotal};${s.discount};${s.paymentType};${s.customer};${s.cashAmount};${s.cardAmount};${s.paid};${s.changeAmount}');
       }
       final dir = await getApplicationDocumentsDirectory();
       final file = File(

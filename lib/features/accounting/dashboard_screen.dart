@@ -126,6 +126,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   ),
                 ),
               if (s.returns > 0) const SizedBox(height: 8),
+              if (s.change != 0)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.change_circle,
+                            color: Colors.grey),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                              'Verilen para üstü (kârı etkilemez)',
+                              style: TextStyle(
+                                  color: Colors.grey)),
+                        ),
+                        Text(money(s.change),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ),
+              if (s.change != 0) const SizedBox(height: 8),
               Card(
                 color: PosColors.navy,
                 child: Padding(

@@ -137,6 +137,11 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       _factor;
   int get _count => _cart.length;
 
+  /// Kaydedilecek para üstü: SADECE nakitte (alınan - toplam),
+  /// diğer tiplerde her zaman 0. Kâra dokunmaz, ayrı izlenir.
+  double _changeFor(String pay) =>
+      pay == 'nakit' ? parseTr(_paidCtrl.text) - _total : 0.0;
+
   void _refocusSearch() {
     if (mounted) _searchFocus.requestFocus();
   }
@@ -429,13 +434,16 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         approvalCode: approvalCode,
         fiscalNo: fiscalNo,
         posStatus: posStatus,
+        change: _changeFor(salePay),
       );
       final paidRaw = parseTr(_paidCtrl.text);
       // Nakit: elden alınan; parçalı: toplam (nakit+kart); cari: 0.
       final paid = salePay == 'nakit'
           ? paidRaw
           : (salePay == 'parcali' ? cash + card : 0.0);
-      final change = paid - saleTotal;
+      // Para üstü SADECE nakitte olur; kart/cari/parçalıda her zaman 0.
+      // (Eskiden kart/cari'de negatif yazılıyordu — artık yazılmıyor.)
+      final change = salePay == 'nakit' ? paidRaw - saleTotal : 0.0;
       if (!mounted) return;
       setState(() {
         _cart.clear();

@@ -2317,6 +2317,18 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _changeAmountMeta = const VerificationMeta(
+    'changeAmount',
+  );
+  @override
+  late final GeneratedColumn<double> changeAmount = GeneratedColumn<double>(
+    'change_amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _uuidMeta = const VerificationMeta('uuid');
   @override
   late final GeneratedColumn<String> uuid = GeneratedColumn<String>(
@@ -2358,6 +2370,7 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
     approvalCode,
     fiscalNo,
     posStatus,
+    changeAmount,
     uuid,
     originDevice,
   ];
@@ -2483,6 +2496,15 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
         posStatus.isAcceptableOrUnknown(data['pos_status']!, _posStatusMeta),
       );
     }
+    if (data.containsKey('change_amount')) {
+      context.handle(
+        _changeAmountMeta,
+        changeAmount.isAcceptableOrUnknown(
+          data['change_amount']!,
+          _changeAmountMeta,
+        ),
+      );
+    }
     if (data.containsKey('uuid')) {
       context.handle(
         _uuidMeta,
@@ -2577,6 +2599,10 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
         DriftSqlType.string,
         data['${effectivePrefix}pos_status'],
       )!,
+      changeAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}change_amount'],
+      )!,
       uuid: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}uuid'],
@@ -2612,6 +2638,7 @@ class Sale extends DataClass implements Insertable<Sale> {
   final String approvalCode;
   final String fiscalNo;
   final String posStatus;
+  final double changeAmount;
   final String uuid;
   final String originDevice;
   const Sale({
@@ -2632,6 +2659,7 @@ class Sale extends DataClass implements Insertable<Sale> {
     required this.approvalCode,
     required this.fiscalNo,
     required this.posStatus,
+    required this.changeAmount,
     required this.uuid,
     required this.originDevice,
   });
@@ -2655,6 +2683,7 @@ class Sale extends DataClass implements Insertable<Sale> {
     map['approval_code'] = Variable<String>(approvalCode);
     map['fiscal_no'] = Variable<String>(fiscalNo);
     map['pos_status'] = Variable<String>(posStatus);
+    map['change_amount'] = Variable<double>(changeAmount);
     map['uuid'] = Variable<String>(uuid);
     map['origin_device'] = Variable<String>(originDevice);
     return map;
@@ -2679,6 +2708,7 @@ class Sale extends DataClass implements Insertable<Sale> {
       approvalCode: Value(approvalCode),
       fiscalNo: Value(fiscalNo),
       posStatus: Value(posStatus),
+      changeAmount: Value(changeAmount),
       uuid: Value(uuid),
       originDevice: Value(originDevice),
     );
@@ -2707,6 +2737,7 @@ class Sale extends DataClass implements Insertable<Sale> {
       approvalCode: serializer.fromJson<String>(json['approvalCode']),
       fiscalNo: serializer.fromJson<String>(json['fiscalNo']),
       posStatus: serializer.fromJson<String>(json['posStatus']),
+      changeAmount: serializer.fromJson<double>(json['changeAmount']),
       uuid: serializer.fromJson<String>(json['uuid']),
       originDevice: serializer.fromJson<String>(json['originDevice']),
     );
@@ -2732,6 +2763,7 @@ class Sale extends DataClass implements Insertable<Sale> {
       'approvalCode': serializer.toJson<String>(approvalCode),
       'fiscalNo': serializer.toJson<String>(fiscalNo),
       'posStatus': serializer.toJson<String>(posStatus),
+      'changeAmount': serializer.toJson<double>(changeAmount),
       'uuid': serializer.toJson<String>(uuid),
       'originDevice': serializer.toJson<String>(originDevice),
     };
@@ -2755,6 +2787,7 @@ class Sale extends DataClass implements Insertable<Sale> {
     String? approvalCode,
     String? fiscalNo,
     String? posStatus,
+    double? changeAmount,
     String? uuid,
     String? originDevice,
   }) => Sale(
@@ -2775,6 +2808,7 @@ class Sale extends DataClass implements Insertable<Sale> {
     approvalCode: approvalCode ?? this.approvalCode,
     fiscalNo: fiscalNo ?? this.fiscalNo,
     posStatus: posStatus ?? this.posStatus,
+    changeAmount: changeAmount ?? this.changeAmount,
     uuid: uuid ?? this.uuid,
     originDevice: originDevice ?? this.originDevice,
   );
@@ -2807,6 +2841,9 @@ class Sale extends DataClass implements Insertable<Sale> {
           : this.approvalCode,
       fiscalNo: data.fiscalNo.present ? data.fiscalNo.value : this.fiscalNo,
       posStatus: data.posStatus.present ? data.posStatus.value : this.posStatus,
+      changeAmount: data.changeAmount.present
+          ? data.changeAmount.value
+          : this.changeAmount,
       uuid: data.uuid.present ? data.uuid.value : this.uuid,
       originDevice: data.originDevice.present
           ? data.originDevice.value
@@ -2834,6 +2871,7 @@ class Sale extends DataClass implements Insertable<Sale> {
           ..write('approvalCode: $approvalCode, ')
           ..write('fiscalNo: $fiscalNo, ')
           ..write('posStatus: $posStatus, ')
+          ..write('changeAmount: $changeAmount, ')
           ..write('uuid: $uuid, ')
           ..write('originDevice: $originDevice')
           ..write(')'))
@@ -2859,6 +2897,7 @@ class Sale extends DataClass implements Insertable<Sale> {
     approvalCode,
     fiscalNo,
     posStatus,
+    changeAmount,
     uuid,
     originDevice,
   );
@@ -2883,6 +2922,7 @@ class Sale extends DataClass implements Insertable<Sale> {
           other.approvalCode == this.approvalCode &&
           other.fiscalNo == this.fiscalNo &&
           other.posStatus == this.posStatus &&
+          other.changeAmount == this.changeAmount &&
           other.uuid == this.uuid &&
           other.originDevice == this.originDevice);
 }
@@ -2905,6 +2945,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
   final Value<String> approvalCode;
   final Value<String> fiscalNo;
   final Value<String> posStatus;
+  final Value<double> changeAmount;
   final Value<String> uuid;
   final Value<String> originDevice;
   const SalesCompanion({
@@ -2925,6 +2966,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     this.approvalCode = const Value.absent(),
     this.fiscalNo = const Value.absent(),
     this.posStatus = const Value.absent(),
+    this.changeAmount = const Value.absent(),
     this.uuid = const Value.absent(),
     this.originDevice = const Value.absent(),
   });
@@ -2946,6 +2988,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     this.approvalCode = const Value.absent(),
     this.fiscalNo = const Value.absent(),
     this.posStatus = const Value.absent(),
+    this.changeAmount = const Value.absent(),
     required String uuid,
     this.originDevice = const Value.absent(),
   }) : receiptNo = Value(receiptNo),
@@ -2968,6 +3011,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     Expression<String>? approvalCode,
     Expression<String>? fiscalNo,
     Expression<String>? posStatus,
+    Expression<double>? changeAmount,
     Expression<String>? uuid,
     Expression<String>? originDevice,
   }) {
@@ -2989,6 +3033,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
       if (approvalCode != null) 'approval_code': approvalCode,
       if (fiscalNo != null) 'fiscal_no': fiscalNo,
       if (posStatus != null) 'pos_status': posStatus,
+      if (changeAmount != null) 'change_amount': changeAmount,
       if (uuid != null) 'uuid': uuid,
       if (originDevice != null) 'origin_device': originDevice,
     });
@@ -3012,6 +3057,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     Value<String>? approvalCode,
     Value<String>? fiscalNo,
     Value<String>? posStatus,
+    Value<double>? changeAmount,
     Value<String>? uuid,
     Value<String>? originDevice,
   }) {
@@ -3033,6 +3079,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
       approvalCode: approvalCode ?? this.approvalCode,
       fiscalNo: fiscalNo ?? this.fiscalNo,
       posStatus: posStatus ?? this.posStatus,
+      changeAmount: changeAmount ?? this.changeAmount,
       uuid: uuid ?? this.uuid,
       originDevice: originDevice ?? this.originDevice,
     );
@@ -3092,6 +3139,9 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     if (posStatus.present) {
       map['pos_status'] = Variable<String>(posStatus.value);
     }
+    if (changeAmount.present) {
+      map['change_amount'] = Variable<double>(changeAmount.value);
+    }
     if (uuid.present) {
       map['uuid'] = Variable<String>(uuid.value);
     }
@@ -3121,6 +3171,7 @@ class SalesCompanion extends UpdateCompanion<Sale> {
           ..write('approvalCode: $approvalCode, ')
           ..write('fiscalNo: $fiscalNo, ')
           ..write('posStatus: $posStatus, ')
+          ..write('changeAmount: $changeAmount, ')
           ..write('uuid: $uuid, ')
           ..write('originDevice: $originDevice')
           ..write(')'))
@@ -7384,6 +7435,7 @@ typedef $$SalesTableCreateCompanionBuilder = SalesCompanion Function({
   Value<String> approvalCode,
   Value<String> fiscalNo,
   Value<String> posStatus,
+  Value<double> changeAmount,
   required String uuid,
   Value<String> originDevice,
 });
@@ -7405,6 +7457,7 @@ typedef $$SalesTableUpdateCompanionBuilder = SalesCompanion Function({
   Value<String> approvalCode,
   Value<String> fiscalNo,
   Value<String> posStatus,
+  Value<double> changeAmount,
   Value<String> uuid,
   Value<String> originDevice,
 });
@@ -7522,6 +7575,11 @@ class $$SalesTableFilterComposer extends Composer<_$AppDb, $SalesTable> {
 
   ColumnFilters<String> get posStatus => $composableBuilder(
     column: $table.posStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get changeAmount => $composableBuilder(
+    column: $table.changeAmount,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7654,6 +7712,11 @@ class $$SalesTableOrderingComposer extends Composer<_$AppDb, $SalesTable> {
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get changeAmount => $composableBuilder(
+    column: $table.changeAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get uuid => $composableBuilder(
     column: $table.uuid,
     builder: (column) => ColumnOrderings(column),
@@ -7734,6 +7797,11 @@ class $$SalesTableAnnotationComposer extends Composer<_$AppDb, $SalesTable> {
   GeneratedColumn<String> get posStatus =>
       $composableBuilder(column: $table.posStatus, builder: (column) => column);
 
+  GeneratedColumn<double> get changeAmount => $composableBuilder(
+    column: $table.changeAmount,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get uuid =>
       $composableBuilder(column: $table.uuid, builder: (column) => column);
 
@@ -7813,6 +7881,7 @@ class $$SalesTableTableManager
                 Value<String> approvalCode = const Value.absent(),
                 Value<String> fiscalNo = const Value.absent(),
                 Value<String> posStatus = const Value.absent(),
+                Value<double> changeAmount = const Value.absent(),
                 Value<String> uuid = const Value.absent(),
                 Value<String> originDevice = const Value.absent(),
               }) => SalesCompanion(
@@ -7833,6 +7902,7 @@ class $$SalesTableTableManager
                 approvalCode: approvalCode,
                 fiscalNo: fiscalNo,
                 posStatus: posStatus,
+                changeAmount: changeAmount,
                 uuid: uuid,
                 originDevice: originDevice,
               ),
@@ -7855,6 +7925,7 @@ class $$SalesTableTableManager
                 Value<String> approvalCode = const Value.absent(),
                 Value<String> fiscalNo = const Value.absent(),
                 Value<String> posStatus = const Value.absent(),
+                Value<double> changeAmount = const Value.absent(),
                 required String uuid,
                 Value<String> originDevice = const Value.absent(),
               }) => SalesCompanion.insert(
@@ -7875,6 +7946,7 @@ class $$SalesTableTableManager
                 approvalCode: approvalCode,
                 fiscalNo: fiscalNo,
                 posStatus: posStatus,
+                changeAmount: changeAmount,
                 uuid: uuid,
                 originDevice: originDevice,
               ),

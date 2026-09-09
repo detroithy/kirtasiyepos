@@ -105,6 +105,8 @@ class Sales extends Table {
   TextColumn get approvalCode => text().withDefault(const Constant(''))();
   TextColumn get fiscalNo => text().withDefault(const Constant(''))();
   TextColumn get posStatus => text().withDefault(const Constant(''))();
+  // --- Para üstü: ayrı izlenir, kâra DOKUNMAZ ---
+  RealColumn get changeAmount => real().withDefault(const Constant(0))();
   // --- Faz-3 senkron ---
   TextColumn get uuid => text().unique()();
   TextColumn get originDevice =>
@@ -206,7 +208,7 @@ class AppDb extends _$AppDb {
   String deviceCode = 'K1';
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -291,6 +293,11 @@ class AppDb extends _$AppDb {
           if (from < 4) {
             // Yeni tablo: CREATE TABLE serbest.
             await m.createTable(supplierLedger);
+          }
+          if (from < 6) {
+            // Para üstü ayrı kolon (sabit default'lu -> serbest).
+            await customStatement(
+                'ALTER TABLE sales ADD COLUMN change_amount REAL NOT NULL DEFAULT 0.0');
           }
         },
       );
@@ -439,6 +446,7 @@ class AppDb extends _$AppDb {
         'approval_code': s.approvalCode,
         'fiscal_no': s.fiscalNo,
         'pos_status': s.posStatus,
+        'change_amount': s.changeAmount,
         'origin_device': s.originDevice,
       };
 
@@ -1070,6 +1078,7 @@ class AppDb extends _$AppDb {
               Value(s['approval_code'] as String? ?? ''),
           fiscalNo: Value(s['fiscal_no'] as String? ?? ''),
           posStatus: Value(s['pos_status'] as String? ?? ''),
+          changeAmount: Value(d(s['change_amount'])),
         ));
       }
       return;
@@ -1092,6 +1101,7 @@ class AppDb extends _$AppDb {
       approvalCode: Value(s['approval_code'] as String? ?? ''),
       fiscalNo: Value(s['fiscal_no'] as String? ?? ''),
       posStatus: Value(s['pos_status'] as String? ?? ''),
+      changeAmount: Value(d(s['change_amount'])),
       uuid: uuid,
       originDevice: Value(s['origin_device'] as String? ?? '?'),
     ));
@@ -1285,6 +1295,8 @@ class AppDb extends _$AppDb {
     String approvalCode = '',
     String fiscalNo = '',
     String posStatus = '',
+    // Verilen para üstü: ayrı izlenir, kâra DOKUNMAZ.
+    double change = 0,
     // İade fişlerinde hareket tipi/notu ezilir (orijinal fiş notta).
     String movementType = 'satis',
     String? movementNote,
@@ -1328,6 +1340,7 @@ class AppDb extends _$AppDb {
         approvalCode: Value(approvalCode),
         fiscalNo: Value(fiscalNo),
         posStatus: Value(posStatus),
+        changeAmount: Value(change),
         uuid: saleUuid,
         originDevice: Value(deviceCode),
       ));
@@ -1768,12 +1781,13 @@ class AppDb extends _$AppDb {
     final rows = await (select(sales)
           ..where((t) => t.date.isBetweenValues(start, end)))
         .get();
-    double total = 0, kdv = 0, profit = 0, returns = 0;
+    double total = 0, kdv = 0, profit = 0, returns = 0, change = 0;
     var returnsCount = 0;
     for (final r in rows) {
       total += r.total;
       kdv += r.kdvTotal;
       profit += r.profitTotal;
+      change += r.changeAmount;
       if (r.total < 0) {
         returns += -r.total;
         returnsCount++;
@@ -1791,6 +1805,7 @@ class AppDb extends _$AppDb {
       receipts: rows.length,
       returns: returns,
       returnsCount: returnsCount,
+      change: change,
     );
   }
 
@@ -1799,12 +1814,13 @@ class AppDb extends _$AppDb {
     final rows = await (select(sales)
           ..where((t) => t.date.isBetweenValues(start, end.nextDay())))
         .get();
-    double total = 0, kdv = 0, profit = 0, returns = 0;
+    double total = 0, kdv = 0, profit = 0, returns = 0, change = 0;
     var returnsCount = 0;
     for (final r in rows) {
       total += r.total;
       kdv += r.kdvTotal;
       profit += r.profitTotal;
+      change += r.changeAmount;
       if (r.total < 0) {
         returns += -r.total;
         returnsCount++;
@@ -1847,6 +1863,7 @@ class AppDb extends _$AppDb {
       receipts: rows.length,
       returns: returns,
       returnsCount: returnsCount,
+      change: change,
       kdvBreakdown: kdvBreak,
       payTotals: payTotals,
       payCounts: payCounts,
@@ -1913,6 +1930,9 @@ class DaySummary {
   /// İadeler toplamı (pozitif sayı) ve iade fiş adedi.
   final double returns;
   final int receipts, returnsCount;
+
+  /// Verilen para üstü toplamı (bilgi amaçlı; kâra DOKUNMAZ).
+  final double change;
   const DaySummary({
     required this.total,
     required this.kdv,
@@ -1921,6 +1941,7 @@ class DaySummary {
     required this.receipts,
     this.returns = 0,
     this.returnsCount = 0,
+    this.change = 0,
   });
   double get netProfit => profit - expenses;
 }
@@ -1929,6 +1950,7 @@ class RangeSummary {
   final double total, kdv, profit, expenses;
   final double returns;
   final int receipts, returnsCount;
+  final double change;
   final Map<double, KdvSlice> kdvBreakdown;
   final Map<String, double> payTotals;
   final Map<String, int> payCounts;
@@ -1940,6 +1962,7 @@ class RangeSummary {
     required this.receipts,
     this.returns = 0,
     this.returnsCount = 0,
+    this.change = 0,
     required this.kdvBreakdown,
     required this.payTotals,
     required this.payCounts,

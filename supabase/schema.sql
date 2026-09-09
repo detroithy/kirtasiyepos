@@ -191,4 +191,9 @@ create policy "auth_all" on supplier_ledger
 alter table sales add column if not exists approval_code text not null default '';
 alter table sales add column if not exists fiscal_no text not null default '';
 alter table sales add column if not exists pos_status text not null default '';
+
+-- ============================================================
+-- v6 eklentisi (para üstü ayrı izlenir)
+-- ============================================================
+alter table sales add column if not exists change_amount double precision not null default 0;
 -- (Realtime üyeliği yukarıdaki DO bloğunda halledilir.)
