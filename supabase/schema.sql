@@ -184,4 +184,11 @@ alter table supplier_ledger enable row level security;
 drop policy if exists "auth_all" on supplier_ledger;
 create policy "auth_all" on supplier_ledger
   for all to authenticated using (true) with check (true);
+
+-- ============================================================
+-- v5 eklentisi (POS cihazı mali onay izleri)
+-- ============================================================
+alter table sales add column if not exists approval_code text not null default '';
+alter table sales add column if not exists fiscal_no text not null default '';
+alter table sales add column if not exists pos_status text not null default '';
 -- (Realtime üyeliği yukarıdaki DO bloğunda halledilir.)

@@ -8,6 +8,9 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../../core/sync/cloud.dart';
+import '../pos_device/pos_device.dart';
+import '../pos_device/simulated_device.dart';
+import '../pos_device/tokenx_device.dart';
 
 /// Yedekleme + bulut senkron + donanım + bilgi ekranı.
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -27,6 +30,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         children: [
           const CloudCard(),
           const DiagCard(),
+          const PosDeviceCard(),
           Card(
             child: ListTile(
               leading: const Icon(Icons.backup),
@@ -605,6 +609,241 @@ class _DiagCardState extends State<DiagCard> {
                 style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: err ? Colors.red : null)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// POS Cihazı kartı (Beko 300TR): sürücü seçimi, bağlantı testi,
+/// kısım eşleme. Gerçek cihaz + lisans hazır olana kadar simülatör.
+class PosDeviceCard extends StatefulWidget {
+  const PosDeviceCard({super.key});
+
+  @override
+  State<PosDeviceCard> createState() => _PosDeviceCardState();
+}
+
+class _PosDeviceCardState extends State<PosDeviceCard> {
+  final _url = TextEditingController();
+  final _timeout = TextEditingController();
+  final _salePath = TextEditingController();
+  final _dept = <double, TextEditingController>{};
+  String _driver = 'simulator';
+  String? _status;
+  bool _busy = false;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final s = await PosSettings.load();
+    _url.text = s.baseUrl;
+    _timeout.text = s.timeoutSec.toString();
+    _salePath.text = s.salePath;
+    for (final k in [0.0, 1.0, 10.0, 20.0]) {
+      _dept[k] =
+          TextEditingController(text: '${s.deptByKdv[k] ?? 4}');
+    }
+    if (mounted) {
+      setState(() {
+        _driver = s.driver;
+        _loaded = true;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _url.dispose();
+    _timeout.dispose();
+    _salePath.dispose();
+    for (final c in _dept.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _msg(String t, {bool err = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(t),
+      backgroundColor: err ? Colors.red.shade700 : null,
+    ));
+  }
+
+  Future<void> _save() async {
+    final m = <double, int>{};
+    for (final e in _dept.entries) {
+      m[e.key] = int.tryParse(e.value.text) ?? 4;
+    }
+    await PosSettings().save(
+      driver: _driver,
+      baseUrl: _url.text,
+      timeoutSec: int.tryParse(_timeout.text) ?? 60,
+      salePath: _salePath.text,
+      deptByKdv: m,
+    );
+    _msg('POS ayarları kaydedildi.');
+  }
+
+  Future<void> _test() async {
+    setState(() {
+      _busy = true;
+      _status = null;
+    });
+    try {
+      await _save();
+      final s = await PosSettings.load();
+      final PosDevice device = s.driver == 'tokenx'
+          ? TokenXDevice(settings: s)
+          : SimulatedDevice();
+      final res = await device.checkConnection();
+      if (mounted) {
+        setState(() => _status =
+            '${res.ok ? '✅' : '❌'} ${res.message}');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) {
+      return const Card(
+          child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator())));
+    }
+    return Card(
+      child: ExpansionTile(
+        leading: const Icon(Icons.point_of_sale),
+        title: const Text('POS Cihazı (Beko 300TR)'),
+        subtitle: Text(_driver == 'tokenx'
+            ? 'TokenX Connect servisi'
+            : 'Simülatör (prova modu)'),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: _driver,
+                  decoration: const InputDecoration(
+                      labelText: 'Sürücü',
+                      border: OutlineInputBorder()),
+                  items: const [
+                    DropdownMenuItem(
+                        value: 'simulator',
+                        child: Text(
+                            'Simülatör (donanım yokken)')),
+                    DropdownMenuItem(
+                        value: 'tokenx',
+                        child: Text(
+                            'TokenX Connect (gerçek cihaz)')),
+                  ],
+                  onChanged: (v) =>
+                      setState(() => _driver = v ?? 'simulator'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _url,
+                  keyboardType: TextInputType.url,
+                  decoration: const InputDecoration(
+                      labelText:
+                          'TokenX adresi (örn. http://127.0.0.1:9001)',
+                      border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _timeout,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                            labelText: 'Zaman aşımı (sn)',
+                            border: OutlineInputBorder()),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _salePath,
+                        decoration: const InputDecoration(
+                            labelText: 'Satış uç noktası',
+                            hintText: '/api/sale',
+                            border: OutlineInputBorder()),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    for (final k in [0.0, 1.0, 10.0, 20.0])
+                      Expanded(
+                        child: Padding(
+                          padding:
+                              const EdgeInsets.only(right: 8),
+                          child: TextField(
+                            controller: _dept[k],
+                            keyboardType:
+                                TextInputType.number,
+                            decoration: InputDecoration(
+                                labelText: '%${k.toInt()} kısım',
+                                border:
+                                    const OutlineInputBorder()),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _busy ? null : _save,
+                        icon: const Icon(Icons.save, size: 18),
+                        label: const Text('Kaydet'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed:
+                            _busy ? null : () => _test(),
+                        icon: const Icon(
+                            Icons.cable_outlined,
+                            size: 18),
+                        label:
+                            const Text('Bağlantıyı Test Et'),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_status != null) ...[
+                  const SizedBox(height: 8),
+                  Text(_status!,
+                      style: const TextStyle(fontSize: 12)),
+                ],
+                const SizedBox(height: 4),
+                const Text(
+                  'Gerçek cihaz için: entegrasyon kablosu + TokenX Connect '
+                  'sürücüsü + cihazda Harici Mod (GMP3 > TOKENX CONNECT) + '
+                  'TokenX lisansı gerekir. Uç noktası yolu bayiden alınır.',
+                  style:
+                      TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+              ],
+            ),
           ),
         ],
       ),

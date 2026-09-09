@@ -101,6 +101,10 @@ class Sales extends Table {
   RealColumn get paid => real().withDefault(const Constant(0))();
   DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
+  // --- POS cihazı (Beko 300TR): mali onay izleri ---
+  TextColumn get approvalCode => text().withDefault(const Constant(''))();
+  TextColumn get fiscalNo => text().withDefault(const Constant(''))();
+  TextColumn get posStatus => text().withDefault(const Constant(''))();
   // --- Faz-3 senkron ---
   TextColumn get uuid => text().unique()();
   TextColumn get originDevice =>
@@ -202,7 +206,7 @@ class AppDb extends _$AppDb {
   String deviceCode = 'K1';
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -273,6 +277,16 @@ class AppDb extends _$AppDb {
                 'UPDATE sales SET paid = total, card_amount = total, updated_at = date WHERE payment_type = \'kart\'');
             await customStatement(
                 'UPDATE sales SET updated_at = date WHERE updated_at = 0');
+          }
+          if (from < 5) {
+            // Hepsi sabit default'lu -> ADD COLUMN serbest.
+            // POS cihazı (Beko 300TR) mali onay izleri:
+            await customStatement(
+                'ALTER TABLE sales ADD COLUMN approval_code TEXT NOT NULL DEFAULT \'\'');
+            await customStatement(
+                'ALTER TABLE sales ADD COLUMN fiscal_no TEXT NOT NULL DEFAULT \'\'');
+            await customStatement(
+                'ALTER TABLE sales ADD COLUMN pos_status TEXT NOT NULL DEFAULT \'\'');
           }
           if (from < 4) {
             // Yeni tablo: CREATE TABLE serbest.
@@ -422,6 +436,9 @@ class AppDb extends _$AppDb {
         'customer': s.customer,
         'paid': s.paid,
         'updated_at': s.updatedAt.toIso8601String(),
+        'approval_code': s.approvalCode,
+        'fiscal_no': s.fiscalNo,
+        'pos_status': s.posStatus,
         'origin_device': s.originDevice,
       };
 
@@ -1049,6 +1066,10 @@ class AppDb extends _$AppDb {
           customer: Value(s['customer'] as String? ?? ''),
           paid: Value(d(s['paid'])),
           updatedAt: Value(remoteUpdated),
+          approvalCode:
+              Value(s['approval_code'] as String? ?? ''),
+          fiscalNo: Value(s['fiscal_no'] as String? ?? ''),
+          posStatus: Value(s['pos_status'] as String? ?? ''),
         ));
       }
       return;
@@ -1068,6 +1089,9 @@ class AppDb extends _$AppDb {
       customer: Value(s['customer'] as String? ?? ''),
       paid: Value(d(s['paid'])),
       updatedAt: Value(remoteUpdated ?? DateTime.now()),
+      approvalCode: Value(s['approval_code'] as String? ?? ''),
+      fiscalNo: Value(s['fiscal_no'] as String? ?? ''),
+      posStatus: Value(s['pos_status'] as String? ?? ''),
       uuid: uuid,
       originDevice: Value(s['origin_device'] as String? ?? '?'),
     ));
@@ -1258,6 +1282,9 @@ class AppDb extends _$AppDb {
     String customer = '',
     double paid = -1,
     String? receiptNo,
+    String approvalCode = '',
+    String fiscalNo = '',
+    String posStatus = '',
   }) {
     return transaction(() async {
       final count = await (selectOnly(sales)
@@ -1295,6 +1322,9 @@ class AppDb extends _$AppDb {
         customer: Value(customer),
         paid: Value(paidAmount),
         updatedAt: Value(DateTime.now()),
+        approvalCode: Value(approvalCode),
+        fiscalNo: Value(fiscalNo),
+        posStatus: Value(posStatus),
         uuid: saleUuid,
         originDevice: Value(deviceCode),
       ));

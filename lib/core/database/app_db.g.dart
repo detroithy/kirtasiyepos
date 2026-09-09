@@ -2281,6 +2281,42 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _approvalCodeMeta = const VerificationMeta(
+    'approvalCode',
+  );
+  @override
+  late final GeneratedColumn<String> approvalCode = GeneratedColumn<String>(
+    'approval_code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _fiscalNoMeta = const VerificationMeta(
+    'fiscalNo',
+  );
+  @override
+  late final GeneratedColumn<String> fiscalNo = GeneratedColumn<String>(
+    'fiscal_no',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _posStatusMeta = const VerificationMeta(
+    'posStatus',
+  );
+  @override
+  late final GeneratedColumn<String> posStatus = GeneratedColumn<String>(
+    'pos_status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _uuidMeta = const VerificationMeta('uuid');
   @override
   late final GeneratedColumn<String> uuid = GeneratedColumn<String>(
@@ -2319,6 +2355,9 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
     customer,
     paid,
     updatedAt,
+    approvalCode,
+    fiscalNo,
+    posStatus,
     uuid,
     originDevice,
   ];
@@ -2423,6 +2462,27 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
         updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
       );
     }
+    if (data.containsKey('approval_code')) {
+      context.handle(
+        _approvalCodeMeta,
+        approvalCode.isAcceptableOrUnknown(
+          data['approval_code']!,
+          _approvalCodeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('fiscal_no')) {
+      context.handle(
+        _fiscalNoMeta,
+        fiscalNo.isAcceptableOrUnknown(data['fiscal_no']!, _fiscalNoMeta),
+      );
+    }
+    if (data.containsKey('pos_status')) {
+      context.handle(
+        _posStatusMeta,
+        posStatus.isAcceptableOrUnknown(data['pos_status']!, _posStatusMeta),
+      );
+    }
     if (data.containsKey('uuid')) {
       context.handle(
         _uuidMeta,
@@ -2505,6 +2565,18 @@ class $SalesTable extends Sales with TableInfo<$SalesTable, Sale> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      approvalCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}approval_code'],
+      )!,
+      fiscalNo: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}fiscal_no'],
+      )!,
+      posStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pos_status'],
+      )!,
       uuid: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}uuid'],
@@ -2537,6 +2609,9 @@ class Sale extends DataClass implements Insertable<Sale> {
   final String customer;
   final double paid;
   final DateTime updatedAt;
+  final String approvalCode;
+  final String fiscalNo;
+  final String posStatus;
   final String uuid;
   final String originDevice;
   const Sale({
@@ -2554,6 +2629,9 @@ class Sale extends DataClass implements Insertable<Sale> {
     required this.customer,
     required this.paid,
     required this.updatedAt,
+    required this.approvalCode,
+    required this.fiscalNo,
+    required this.posStatus,
     required this.uuid,
     required this.originDevice,
   });
@@ -2574,6 +2652,9 @@ class Sale extends DataClass implements Insertable<Sale> {
     map['customer'] = Variable<String>(customer);
     map['paid'] = Variable<double>(paid);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['approval_code'] = Variable<String>(approvalCode);
+    map['fiscal_no'] = Variable<String>(fiscalNo);
+    map['pos_status'] = Variable<String>(posStatus);
     map['uuid'] = Variable<String>(uuid);
     map['origin_device'] = Variable<String>(originDevice);
     return map;
@@ -2595,6 +2676,9 @@ class Sale extends DataClass implements Insertable<Sale> {
       customer: Value(customer),
       paid: Value(paid),
       updatedAt: Value(updatedAt),
+      approvalCode: Value(approvalCode),
+      fiscalNo: Value(fiscalNo),
+      posStatus: Value(posStatus),
       uuid: Value(uuid),
       originDevice: Value(originDevice),
     );
@@ -2620,6 +2704,9 @@ class Sale extends DataClass implements Insertable<Sale> {
       customer: serializer.fromJson<String>(json['customer']),
       paid: serializer.fromJson<double>(json['paid']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      approvalCode: serializer.fromJson<String>(json['approvalCode']),
+      fiscalNo: serializer.fromJson<String>(json['fiscalNo']),
+      posStatus: serializer.fromJson<String>(json['posStatus']),
       uuid: serializer.fromJson<String>(json['uuid']),
       originDevice: serializer.fromJson<String>(json['originDevice']),
     );
@@ -2642,6 +2729,9 @@ class Sale extends DataClass implements Insertable<Sale> {
       'customer': serializer.toJson<String>(customer),
       'paid': serializer.toJson<double>(paid),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'approvalCode': serializer.toJson<String>(approvalCode),
+      'fiscalNo': serializer.toJson<String>(fiscalNo),
+      'posStatus': serializer.toJson<String>(posStatus),
       'uuid': serializer.toJson<String>(uuid),
       'originDevice': serializer.toJson<String>(originDevice),
     };
@@ -2662,6 +2752,9 @@ class Sale extends DataClass implements Insertable<Sale> {
     String? customer,
     double? paid,
     DateTime? updatedAt,
+    String? approvalCode,
+    String? fiscalNo,
+    String? posStatus,
     String? uuid,
     String? originDevice,
   }) => Sale(
@@ -2679,6 +2772,9 @@ class Sale extends DataClass implements Insertable<Sale> {
     customer: customer ?? this.customer,
     paid: paid ?? this.paid,
     updatedAt: updatedAt ?? this.updatedAt,
+    approvalCode: approvalCode ?? this.approvalCode,
+    fiscalNo: fiscalNo ?? this.fiscalNo,
+    posStatus: posStatus ?? this.posStatus,
     uuid: uuid ?? this.uuid,
     originDevice: originDevice ?? this.originDevice,
   );
@@ -2706,6 +2802,11 @@ class Sale extends DataClass implements Insertable<Sale> {
       customer: data.customer.present ? data.customer.value : this.customer,
       paid: data.paid.present ? data.paid.value : this.paid,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      approvalCode: data.approvalCode.present
+          ? data.approvalCode.value
+          : this.approvalCode,
+      fiscalNo: data.fiscalNo.present ? data.fiscalNo.value : this.fiscalNo,
+      posStatus: data.posStatus.present ? data.posStatus.value : this.posStatus,
       uuid: data.uuid.present ? data.uuid.value : this.uuid,
       originDevice: data.originDevice.present
           ? data.originDevice.value
@@ -2730,6 +2831,9 @@ class Sale extends DataClass implements Insertable<Sale> {
           ..write('customer: $customer, ')
           ..write('paid: $paid, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('approvalCode: $approvalCode, ')
+          ..write('fiscalNo: $fiscalNo, ')
+          ..write('posStatus: $posStatus, ')
           ..write('uuid: $uuid, ')
           ..write('originDevice: $originDevice')
           ..write(')'))
@@ -2752,6 +2856,9 @@ class Sale extends DataClass implements Insertable<Sale> {
     customer,
     paid,
     updatedAt,
+    approvalCode,
+    fiscalNo,
+    posStatus,
     uuid,
     originDevice,
   );
@@ -2773,6 +2880,9 @@ class Sale extends DataClass implements Insertable<Sale> {
           other.customer == this.customer &&
           other.paid == this.paid &&
           other.updatedAt == this.updatedAt &&
+          other.approvalCode == this.approvalCode &&
+          other.fiscalNo == this.fiscalNo &&
+          other.posStatus == this.posStatus &&
           other.uuid == this.uuid &&
           other.originDevice == this.originDevice);
 }
@@ -2792,6 +2902,9 @@ class SalesCompanion extends UpdateCompanion<Sale> {
   final Value<String> customer;
   final Value<double> paid;
   final Value<DateTime> updatedAt;
+  final Value<String> approvalCode;
+  final Value<String> fiscalNo;
+  final Value<String> posStatus;
   final Value<String> uuid;
   final Value<String> originDevice;
   const SalesCompanion({
@@ -2809,6 +2922,9 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     this.customer = const Value.absent(),
     this.paid = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.approvalCode = const Value.absent(),
+    this.fiscalNo = const Value.absent(),
+    this.posStatus = const Value.absent(),
     this.uuid = const Value.absent(),
     this.originDevice = const Value.absent(),
   });
@@ -2827,6 +2943,9 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     this.customer = const Value.absent(),
     this.paid = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.approvalCode = const Value.absent(),
+    this.fiscalNo = const Value.absent(),
+    this.posStatus = const Value.absent(),
     required String uuid,
     this.originDevice = const Value.absent(),
   }) : receiptNo = Value(receiptNo),
@@ -2846,6 +2965,9 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     Expression<String>? customer,
     Expression<double>? paid,
     Expression<DateTime>? updatedAt,
+    Expression<String>? approvalCode,
+    Expression<String>? fiscalNo,
+    Expression<String>? posStatus,
     Expression<String>? uuid,
     Expression<String>? originDevice,
   }) {
@@ -2864,6 +2986,9 @@ class SalesCompanion extends UpdateCompanion<Sale> {
       if (customer != null) 'customer': customer,
       if (paid != null) 'paid': paid,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (approvalCode != null) 'approval_code': approvalCode,
+      if (fiscalNo != null) 'fiscal_no': fiscalNo,
+      if (posStatus != null) 'pos_status': posStatus,
       if (uuid != null) 'uuid': uuid,
       if (originDevice != null) 'origin_device': originDevice,
     });
@@ -2884,6 +3009,9 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     Value<String>? customer,
     Value<double>? paid,
     Value<DateTime>? updatedAt,
+    Value<String>? approvalCode,
+    Value<String>? fiscalNo,
+    Value<String>? posStatus,
     Value<String>? uuid,
     Value<String>? originDevice,
   }) {
@@ -2902,6 +3030,9 @@ class SalesCompanion extends UpdateCompanion<Sale> {
       customer: customer ?? this.customer,
       paid: paid ?? this.paid,
       updatedAt: updatedAt ?? this.updatedAt,
+      approvalCode: approvalCode ?? this.approvalCode,
+      fiscalNo: fiscalNo ?? this.fiscalNo,
+      posStatus: posStatus ?? this.posStatus,
       uuid: uuid ?? this.uuid,
       originDevice: originDevice ?? this.originDevice,
     );
@@ -2952,6 +3083,15 @@ class SalesCompanion extends UpdateCompanion<Sale> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (approvalCode.present) {
+      map['approval_code'] = Variable<String>(approvalCode.value);
+    }
+    if (fiscalNo.present) {
+      map['fiscal_no'] = Variable<String>(fiscalNo.value);
+    }
+    if (posStatus.present) {
+      map['pos_status'] = Variable<String>(posStatus.value);
+    }
     if (uuid.present) {
       map['uuid'] = Variable<String>(uuid.value);
     }
@@ -2978,6 +3118,9 @@ class SalesCompanion extends UpdateCompanion<Sale> {
           ..write('customer: $customer, ')
           ..write('paid: $paid, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('approvalCode: $approvalCode, ')
+          ..write('fiscalNo: $fiscalNo, ')
+          ..write('posStatus: $posStatus, ')
           ..write('uuid: $uuid, ')
           ..write('originDevice: $originDevice')
           ..write(')'))
@@ -7238,6 +7381,9 @@ typedef $$SalesTableCreateCompanionBuilder = SalesCompanion Function({
   Value<String> customer,
   Value<double> paid,
   Value<DateTime> updatedAt,
+  Value<String> approvalCode,
+  Value<String> fiscalNo,
+  Value<String> posStatus,
   required String uuid,
   Value<String> originDevice,
 });
@@ -7256,6 +7402,9 @@ typedef $$SalesTableUpdateCompanionBuilder = SalesCompanion Function({
   Value<String> customer,
   Value<double> paid,
   Value<DateTime> updatedAt,
+  Value<String> approvalCode,
+  Value<String> fiscalNo,
+  Value<String> posStatus,
   Value<String> uuid,
   Value<String> originDevice,
 });
@@ -7358,6 +7507,21 @@ class $$SalesTableFilterComposer extends Composer<_$AppDb, $SalesTable> {
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get approvalCode => $composableBuilder(
+    column: $table.approvalCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fiscalNo => $composableBuilder(
+    column: $table.fiscalNo,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get posStatus => $composableBuilder(
+    column: $table.posStatus,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7475,6 +7639,21 @@ class $$SalesTableOrderingComposer extends Composer<_$AppDb, $SalesTable> {
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get approvalCode => $composableBuilder(
+    column: $table.approvalCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fiscalNo => $composableBuilder(
+    column: $table.fiscalNo,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get posStatus => $composableBuilder(
+    column: $table.posStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get uuid => $composableBuilder(
     column: $table.uuid,
     builder: (column) => ColumnOrderings(column),
@@ -7543,6 +7722,17 @@ class $$SalesTableAnnotationComposer extends Composer<_$AppDb, $SalesTable> {
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get approvalCode => $composableBuilder(
+    column: $table.approvalCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get fiscalNo =>
+      $composableBuilder(column: $table.fiscalNo, builder: (column) => column);
+
+  GeneratedColumn<String> get posStatus =>
+      $composableBuilder(column: $table.posStatus, builder: (column) => column);
 
   GeneratedColumn<String> get uuid =>
       $composableBuilder(column: $table.uuid, builder: (column) => column);
@@ -7620,6 +7810,9 @@ class $$SalesTableTableManager
                 Value<String> customer = const Value.absent(),
                 Value<double> paid = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> approvalCode = const Value.absent(),
+                Value<String> fiscalNo = const Value.absent(),
+                Value<String> posStatus = const Value.absent(),
                 Value<String> uuid = const Value.absent(),
                 Value<String> originDevice = const Value.absent(),
               }) => SalesCompanion(
@@ -7637,6 +7830,9 @@ class $$SalesTableTableManager
                 customer: customer,
                 paid: paid,
                 updatedAt: updatedAt,
+                approvalCode: approvalCode,
+                fiscalNo: fiscalNo,
+                posStatus: posStatus,
                 uuid: uuid,
                 originDevice: originDevice,
               ),
@@ -7656,6 +7852,9 @@ class $$SalesTableTableManager
                 Value<String> customer = const Value.absent(),
                 Value<double> paid = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> approvalCode = const Value.absent(),
+                Value<String> fiscalNo = const Value.absent(),
+                Value<String> posStatus = const Value.absent(),
                 required String uuid,
                 Value<String> originDevice = const Value.absent(),
               }) => SalesCompanion.insert(
@@ -7673,6 +7872,9 @@ class $$SalesTableTableManager
                 customer: customer,
                 paid: paid,
                 updatedAt: updatedAt,
+                approvalCode: approvalCode,
+                fiscalNo: fiscalNo,
+                posStatus: posStatus,
                 uuid: uuid,
                 originDevice: originDevice,
               ),

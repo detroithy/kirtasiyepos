@@ -11,6 +11,9 @@ import '../../core/database/app_db.dart';
 import '../../core/sync/cloud.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
+import '../pos_device/pos_device.dart';
+import '../pos_device/simulated_device.dart';
+import '../pos_device/tokenx_device.dart';
 import '../products/quick_add.dart';
 import 'cari_defter_screen.dart';
 import 'pos_print.dart';
@@ -169,6 +172,100 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     _refocusSearch();
   }
 
+  /// Kartlı tutarı POS cihazından onaylatır. Onay yoksa null döner
+  /// (satış KAYDEDİLMEZ). İptalde çift-tahsilat uyarısı verilir.
+  Future<PosResult?> _authorizeCard(
+      double amountTl, String receiptNo) async {
+    final settings = await PosSettings.load();
+    if (!mounted) return null;
+    final PosDevice device = settings.driver == 'tokenx'
+        ? TokenXDevice(settings: settings)
+        : SimulatedDevice();
+    final req = PosSaleRequest(
+      amountKurus: (amountTl * 100).round(),
+      receiptNo: receiptNo,
+      lines: [
+        for (final l in _cart)
+          PosLine(
+            name: l.product.name,
+            qty: l.qty,
+            unitPriceTl: l.product.sellPrice,
+            kdvDept: settings.deptFor(l.product.kdvRate),
+          ),
+      ],
+      timeout: Duration(seconds: settings.timeoutSec),
+    );
+    var cancelled = false;
+    // ignore: unawaited_futures
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Text(device.name),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Tutar: ${money(amountTl)}',
+                style: const TextStyle(
+                    fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            const Text(
+                'Kartı cihaza okutun / takın. Onay bekleniyor...'),
+            const SizedBox(height: 12),
+            const LinearProgressIndicator(),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              cancelled = true;
+              Navigator.pop(ctx);
+            },
+            child: const Text('Vazgeç'),
+          ),
+        ],
+      ),
+    );
+    PosResult res;
+    try {
+      res = await device
+          .sale(req)
+          .timeout(req.timeout + const Duration(seconds: 10));
+    } on PosNotConfigured catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.message)));
+      }
+      return null;
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Cihaz hatası: $e')));
+      }
+      return null;
+    }
+    if (mounted) Navigator.pop(context); // bekleme diyaloğu
+    if (cancelled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'İptal edildi. Cihazdan çekim yapıldıysa iade/iptal işlemi yapın.')));
+      }
+      return null;
+    }
+    if (!res.approved) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Ödeme reddedildi: ${res.message}')));
+      }
+      return null;
+    }
+    return res;
+  }
+
   Future<void> _completeSale() async {
     if (_cart.isEmpty || _busy) return;
     setState(() => _busy = true);
@@ -239,6 +336,25 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       }
       final receiptNo = await _takeReceiptNo();
       final saleDiscount = _discount.clamp(0.0, _subtotal);
+      // Kartlı tutar cihazdan onaylanır (Beko 300TR). Onaysız kayıt YOK.
+      var approvalCode = '';
+      var fiscalNo = '';
+      var posStatus = '';
+      final cardAmount = salePay == 'kart'
+          ? saleTotal
+          : (salePay == 'parcali' ? card : 0.0);
+      if (cardAmount > 0) {
+        final auth =
+            await _authorizeCard(cardAmount, receiptNo);
+        if (auth == null) {
+          if (mounted) setState(() => _busy = false);
+          _refocusSearch();
+          return;
+        }
+        approvalCode = auth.approvalCode;
+        fiscalNo = auth.fiscalNo;
+        posStatus = 'approved';
+      }
       final result = await _db.completeSale(
         items: items,
         total: saleTotal,
@@ -250,6 +366,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         cardAmount: card,
         customer: customer.trim(),
         receiptNo: receiptNo,
+        approvalCode: approvalCode,
+        fiscalNo: fiscalNo,
+        posStatus: posStatus,
       );
       final paidRaw =
           double.tryParse(_paidCtrl.text.replaceAll(',', '.')) ?? 0;
@@ -282,6 +401,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         cash: cash,
         card: card,
         customer: customer.trim(),
+        approvalCode: approvalCode,
+        fiscalNo: fiscalNo,
       );
     } catch (e) {
       if (!mounted) return;
@@ -489,6 +610,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     double card = 0,
     String customer = '',
     double discount = 0,
+    String approvalCode = '',
+    String fiscalNo = '',
   }) async {
     await showDialog(
       context: context,
@@ -573,6 +696,14 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                         Text(money(card)),
                       ]),
                 ],
+                if (approvalCode.isNotEmpty)
+                  Text('Onay Kodu: $approvalCode',
+                      style: const TextStyle(
+                          color: Colors.grey, fontSize: 12)),
+                if (fiscalNo.isNotEmpty)
+                  Text('Mali Fiş No: $fiscalNo',
+                      style: const TextStyle(
+                          color: Colors.grey, fontSize: 12)),
               ],
             ),
           ),
@@ -598,6 +729,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   card: card,
                   customer: customer,
                   discount: discount,
+                  approvalCode: approvalCode,
+                  fiscalNo: fiscalNo,
                 );
               } catch (e) {
                 if (mounted) {

@@ -41,6 +41,8 @@ Future<void> printReceipt({
   double card = 0,
   String customer = '',
   double discount = 0,
+  String approvalCode = '',
+  String fiscalNo = '',
 }) async {
   final doc = pw.Document();
   final mono = pw.TextStyle(font: pw.Font.courier(), fontSize: 9);
@@ -145,6 +147,10 @@ Future<void> printReceipt({
                   pw.Text('Ustu: ${money(paid - total)}',
                       style: mono),
                 ]),
+          if (approvalCode.isNotEmpty)
+            pw.Text('Onay Kodu: $approvalCode', style: mono),
+          if (fiscalNo.isNotEmpty)
+            pw.Text('Mali Fis No: $fiscalNo', style: mono),
           pw.SizedBox(height: 6),
           pw.BarcodeWidget(
             barcode: pw.Barcode.code128(),

@@ -67,6 +67,10 @@ void main() {
     await db.insertLedgerEntry(
         supplierId: sup.id, kind: 'alim', amount: 500);
     expect(await db.supplierBalance(sup.id), 500);
+    // v5 POS cihaz kolonları boş gelir:
+    expect(sales.single.approvalCode, '');
+    expect(sales.single.fiscalNo, '');
+    expect(sales.single.posStatus, '');
     await db.close();
     if (file.existsSync()) file.deleteSync();
   });
