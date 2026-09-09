@@ -18,6 +18,17 @@ class CloudStatus {
   const CloudStatus({required this.mode, this.pending = 0, this.message});
 }
 
+/// Push sırası: üst satırlar (kategori/tedarikçi) önce itilir,
+/// yoksa bulut FK hatası verir. Kuyruk id sırası bunu garanti etmez
+/// (birleştirme sonradan satır ekleyebilir), o yüzden açık sıralanır.
+int pushRank(String entity) => switch (entity) {
+      'categories' || 'suppliers' || 'expenses' => 0,
+      'products' => 1,
+      'sales' => 2,
+      'sale_items' || 'stock_movements' => 3,
+      _ => 9,
+    };
+
 /// Rozet bu dinleyiciyle beslenir (anashell üst barı).
 final cloudStatus =
     ValueNotifier<CloudStatus>(const CloudStatus(mode: CloudMode.off));
@@ -271,15 +282,20 @@ class Cloud {
 
   // ================= PUSH =================
 
-  String _remote(String entity) => entity; // birebir tablo adları
-
   /// Son push turunda takılan ilk işlemin hatası (tanı için saklanır).
   String? lastPushError;
+
+  String _remote(String entity) => entity; // birebir tablo adları
 
   Future<void> _push() async {
     final db = _db!, sb = _sb!;
     lastPushError = null;
     var ops = await db.pendingOps(limit: 200);
+    // FK sırası: üst satırlar önce (kategori -> ürün -> satış -> satır).
+    ops.sort((a, b) {
+      final r = pushRank(a.entity).compareTo(pushRank(b.entity));
+      return r != 0 ? r : a.id.compareTo(b.id);
+    });
     while (ops.isNotEmpty) {
       final done = <int>[];
       var failed = false;
@@ -297,6 +313,11 @@ class Cloud {
             await db.dropOps([op.id]);
             continue;
           }
+          // Eksik üst satır (FK 23503): önce onu it, bunu yeniden dene:
+          if (op.attempts < 2 && await _pushMissingParent(op, e)) {
+            await db.bumpAttempts(op.id);
+            continue;
+          }
           lastPushError =
               '[${op.entity}:${op.rowUuid}] ${e.toString().split('\n').first}';
           await db.bumpAttempts(op.id);
@@ -307,7 +328,71 @@ class Cloud {
       await db.dropOps(done);
       if (failed) break;
       ops = await db.pendingOps(limit: 200);
+      ops.sort((a, b) {
+        final r = pushRank(a.entity).compareTo(pushRank(b.entity));
+        return r != 0 ? r : a.id.compareTo(b.id);
+      });
     }
+  }
+
+  /// FK 23503: satırın bağlı olduğu üst satır bulutta yoksa önce
+  /// onu iter. Başarılıysa true (mevcut op yeniden denensin).
+  Future<bool> _pushMissingParent(QueuedOp op, Object e) async {
+    final msg = e.toString();
+    if (!msg.contains('23503') && !msg.contains('foreign key')) {
+      return false;
+    }
+    final db = _db!, sb = _sb!;
+    try {
+      final payload = jsonDecode(op.payload) as Map<String, dynamic>;
+      if (op.entity == 'products') {
+        for (final parent in ['categories', 'suppliers']) {
+          final key =
+              parent == 'categories' ? 'category_uuid' : 'supplier_uuid';
+          final pu = payload[key] as String?;
+          if (pu == null) continue;
+          Map<String, dynamic>? parentPayload;
+          if (parent == 'categories') {
+            final c = await (db.select(db.categories)
+                  ..where((t) => t.uuid.equals(pu)))
+                .getSingleOrNull();
+            if (c == null) return false;
+            parentPayload = db.categoryPayload(c);
+          } else {
+            final s = await (db.select(db.suppliers)
+                  ..where((t) => t.uuid.equals(pu)))
+                .getSingleOrNull();
+            if (s == null) return false;
+            parentPayload = db.supplierPayload(s);
+          }
+          await sb.from(parent).upsert(parentPayload, onConflict: 'uuid');
+        }
+        return true;
+      }
+      if (op.entity == 'sale_items') {
+        final su = payload['sale_uuid'] as String?;
+        if (su == null) return false;
+        final sale = await (db.select(db.sales)
+              ..where((t) => t.uuid.equals(su)))
+            .getSingleOrNull();
+        if (sale == null) return false;
+        await sb.from('sales').upsert(db.salePayload(sale), onConflict: 'uuid');
+        return true;
+      }
+      if (op.entity == 'stock_movements') {
+        final pu = payload['product_uuid'] as String?;
+        if (pu == null) return false;
+        final prod = await db.productByUuid(pu);
+        if (prod == null) return false;
+        await sb
+            .from('products')
+            .upsert(await db.productPayload(prod), onConflict: 'uuid');
+        return true;
+      }
+    } catch (_) {
+      return false;
+    }
+    return false;
   }
 
   /// Push'ta benzersizlik çakışması (409/23505): bulutun kazanan

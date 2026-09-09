@@ -25,4 +25,24 @@ void main() {
     expect(Cloud.normalizeSupabaseUrl('xyz.supabase.co'), isNull);
     expect(Cloud.normalizeSupabaseUrl(''), isNull);
   });
+
+  test('push sırası üst satırları öne alır', () {
+    expect(pushRank('categories'), lessThan(pushRank('products')));
+    expect(pushRank('products'), lessThan(pushRank('sales')));
+    expect(pushRank('sales'), lessThan(pushRank('sale_items')));
+    expect(pushRank('sales'), lessThan(pushRank('stock_movements')));
+    final order = [
+      'sale_items',
+      'sales',
+      'products',
+      'categories',
+      'stock_movements',
+      'expenses',
+    ]..sort((a, b) {
+        final r = pushRank(a).compareTo(pushRank(b));
+        return r != 0 ? r : a.compareTo(b);
+      });
+    expect(order.indexOf('categories'), lessThan(order.indexOf('products')));
+    expect(order.indexOf('products'), lessThan(order.indexOf('sales')));
+  });
 }
