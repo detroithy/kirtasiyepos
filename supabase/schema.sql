@@ -135,8 +135,24 @@ create policy "auth_all" on expenses
   for all to authenticated using (true) with check (true);
 
 -- ---------- Realtime (karşı cihaza anlık yansıma) ----------
-alter publication supabase_realtime add table
-  categories, suppliers, products, stock_movements, sales, sale_items, expenses;
+-- Tekrar çalıştırılabilir sürüm (42710 hatası vermez):
+DO $$
+DECLARE
+  t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['categories', 'suppliers', 'products',
+    'stock_movements', 'sales', 'sale_items', 'expenses',
+    'supplier_ledger']
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime' AND tablename = t
+    ) THEN
+      EXECUTE format(
+        'ALTER PUBLICATION supabase_realtime ADD TABLE %I', t);
+    END IF;
+  END LOOP;
+END $$;
 
 -- ============================================================
 -- v3 eklentisi (parçalı/cari): ilk kurulumda üstteki CREATE'ler
@@ -168,5 +184,4 @@ alter table supplier_ledger enable row level security;
 drop policy if exists "auth_all" on supplier_ledger;
 create policy "auth_all" on supplier_ledger
   for all to authenticated using (true) with check (true);
-
-alter publication supabase_realtime add table supplier_ledger;
+-- (Realtime üyeliği yukarıdaki DO bloğunda halledilir.)
