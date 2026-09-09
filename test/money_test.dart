@@ -26,4 +26,12 @@ void main() {
     expect(parseTr('5.000'), 5000);
     expect(parseTr('bozuk', 7), 7);
   });
+
+  test('moneyCompact eksen etiketi', () {
+    expect(moneyCompact(500), '500');
+    expect(moneyCompact(1500), '1,5 B');
+    expect(moneyCompact(25000), '25 B');
+    expect(moneyCompact(-800), '-800');
+    expect(moneyCompact(0), '0');
+  });
 }

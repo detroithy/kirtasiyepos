@@ -25,6 +25,18 @@ String kdvEtiket(double oran) =>
 String fmtQty(double v) =>
     v.truncateToDouble() == v ? v.toInt().toString() : v.toString();
 
+/// Grafik eksenleri için kısa tutar: 500 -> "500", 1500 -> "1,5 B",
+/// 25000 -> "25 B", -800 -> "-800". Sembol yok, yer dar.
+String moneyCompact(double v) {
+  final neg = v < 0;
+  final a = v.abs();
+  final s = a >= 1000
+      ? '${(a / 1000).toStringAsFixed(a >= 10000 ? 0 : 1)} B'
+      : a.toStringAsFixed(0);
+  // TR ondalık virgülü:
+  return '${neg ? '-' : ''}${s.replaceAll('.', ',')}';
+}
+
 /// Türkçe sayı ayrıştırma: "5.000" -> 5000, "1.250,50" -> 1250.50,
 /// "1250,50" -> 1250.50, "1250.50" -> 1250.50. Bozuksa null.
 double? tryParseTr(String input) {

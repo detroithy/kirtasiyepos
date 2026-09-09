@@ -5,8 +5,8 @@ import '../../core/database/app_db.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 
-/// Rapor grafikleri: saatlik bar + kategori pasta + 7 günlük çizgi.
-/// Salt-okunur sorgular, muhasebe yazma yollarına dokunmaz.
+/// Rapor grafikleri (modern stil): saatlik bar + kategori donut +
+/// 7 günlük çizgi. Salt-okunur sorgular.
 class ChartsSection extends StatelessWidget {
   final AppDb db;
   final DateTime start;
@@ -99,41 +99,116 @@ class ChartsSection extends StatelessWidget {
     );
   }
 
+  // ---------- Ortak başlık ----------
+
+  Widget _header(IconData icon, Color color, String title,
+      String sub, Widget trailing) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 20, color: color),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: PosColors.navy)),
+              Text(sub,
+                  style: const TextStyle(
+                      fontSize: 12, color: PosColors.ink2)),
+            ],
+          ),
+        ),
+        trailing,
+      ],
+    );
+  }
+
+  Widget _chip(String text, Color color) {
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(text,
+          style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color)),
+    );
+  }
+
+  // ---------- Saatlik bar ----------
+
   Widget _hourlyCard(_Charts c) {
     final hi =
         c.hourly.fold(0.0, (a, b) => a > b ? a : b);
     final lo = c.hourly.fold(0.0, (a, b) => a < b ? a : b);
-    final maxY = (hi * 1.2).clamp(10.0, double.infinity);
-    final minY = lo < 0 ? lo * 1.2 : 0.0;
+    final maxY = (hi * 1.25).clamp(10.0, double.infinity);
+    final minY = lo < 0 ? lo * 1.25 : 0.0;
+    final peakH =
+        c.hourly.indexOf(c.hourly.reduce((a, b) => a > b ? a : b));
     return Card(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 12, 16, 8),
+        padding: const EdgeInsets.fromLTRB(12, 12, 16, 8),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Saatlik Ciro • ${fday(c.hourlyDay)}',
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: PosColors.navy)),
-            const SizedBox(height: 8),
+            _header(
+              Icons.bar_chart,
+              PosColors.navy,
+              'Saatlik Ciro',
+              fday(c.hourlyDay),
+              hi > 0
+                  ? _chip(
+                      'Zirve $peakH:00 • ${money(hi)}',
+                      PosColors.amberDark)
+                  : const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 12),
             SizedBox(
-              height: 200,
+              height: 210,
               child: BarChart(
                 BarChartData(
                   maxY: maxY,
                   minY: minY,
-                  gridData:
-                      const FlGridData(show: false),
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (v) => FlLine(
+                      color: PosColors.cardBorder,
+                      strokeWidth: 1,
+                    ),
+                  ),
                   borderData: FlBorderData(show: false),
                   barTouchData: BarTouchData(
                     touchTooltipData: BarTouchTooltipData(
+                      getTooltipColor: (_) => PosColors.navy,
+                      tooltipBorderRadius:
+                          BorderRadius.circular(8),
+                      tooltipPadding:
+                          const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
                       getTooltipItem:
                           (group, _, rod, stack) =>
                               BarTooltipItem(
-                        '${group.x}:00\n${money(rod.toY)}',
+                        '${group.x}:00 – ${group.x + 1}:00\n${money(rod.toY)}',
                         const TextStyle(
                             color: Colors.white,
-                            fontWeight: FontWeight.bold),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12),
                       ),
                     ),
                   ),
@@ -147,9 +222,9 @@ class ChartsSection extends StatelessWidget {
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 52,
+                        reservedSize: 46,
                         getTitlesWidget: (v, _) => Text(
-                          money(v).replaceAll('₺', '').trim(),
+                          moneyCompact(v),
                           style: const TextStyle(
                               fontSize: 10,
                               color: PosColors.ink2),
@@ -166,10 +241,14 @@ class ChartsSection extends StatelessWidget {
                               h % 3 != 0) {
                             return const SizedBox.shrink();
                           }
-                          return Text('$h',
-                              style: const TextStyle(
-                                  fontSize: 10,
-                                  color: PosColors.ink2));
+                          return Padding(
+                            padding:
+                                const EdgeInsets.only(top: 4),
+                            child: Text('$h:00',
+                                style: const TextStyle(
+                                    fontSize: 10,
+                                    color: PosColors.ink2)),
+                          );
                         },
                       ),
                     ),
@@ -181,14 +260,24 @@ class ChartsSection extends StatelessWidget {
                         barRods: [
                           BarChartRodData(
                             toY: c.hourly[h],
-                            color: h >= 11 && h <= 14
-                                ? PosColors.amber
-                                : PosColors.navy,
-                            width: 10,
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: h == peakH && hi > 0
+                                  ? [
+                                      PosColors.amber,
+                                      PosColors.amberDark
+                                    ]
+                                  : [
+                                      PosColors.royal,
+                                      PosColors.navy
+                                    ],
+                            ),
+                            width: 12,
                             borderRadius:
                                 const BorderRadius.vertical(
                                     top: Radius.circular(
-                                        3)),
+                                        4)),
                           ),
                         ],
                       ),
@@ -202,15 +291,18 @@ class ChartsSection extends StatelessWidget {
     );
   }
 
+  // ---------- Kategori donut ----------
+
+  static const _palette = [
+    PosColors.navy,
+    PosColors.amber,
+    PosColors.royal,
+    PosColors.okTx,
+    PosColors.critTx,
+    PosColors.ink2,
+  ];
+
   Widget _pieCard(_Charts c) {
-    const palette = [
-      PosColors.navy,
-      PosColors.amber,
-      PosColors.royal,
-      PosColors.okTx,
-      PosColors.critTx,
-      PosColors.ink2,
-    ];
     final entries = c.cats.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final total =
@@ -219,75 +311,143 @@ class ChartsSection extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Kategori Ciro Dağılımı',
-                style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: PosColors.navy)),
+            _header(
+              Icons.pie_chart,
+              PosColors.amberDark,
+              'Kategori Cirosu',
+              '${entries.length} kategori',
+              total > 0
+                  ? _chip(
+                      'Toplam ${money(total)}', PosColors.navy)
+                  : const SizedBox.shrink(),
+            ),
             const SizedBox(height: 8),
             if (entries.isEmpty)
-              const Text('Veri yok.')
-            else
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('Veri yok.'),
+              )
+            else ...[
               SizedBox(
                 height: 190,
-                child: PieChart(
-                  PieChartData(
-                    centerSpaceRadius: 34,
-                    sectionsSpace: 2,
-                    sections: [
-                      for (var i = 0;
-                          i < entries.length && i < 6;
-                          i++)
-                        PieChartSectionData(
-                          value: entries[i].value,
-                          title:
-                              '%${(entries[i].value / total * 100).toStringAsFixed(0)}',
-                          color: palette[i % palette.length],
-                          radius: 64,
-                          titleStyle: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    PieChart(
+                      PieChartData(
+                        centerSpaceRadius: 44,
+                        sectionsSpace: 3,
+                        sections: [
+                          for (var i = 0;
+                              i < entries.length && i < 6;
+                              i++)
+                            PieChartSectionData(
+                              value: entries[i].value,
+                              title:
+                                  '%${(entries[i].value / total * 100).toStringAsFixed(0)}',
+                              color: _palette[
+                                  i % _palette.length],
+                              radius: 62,
+                              titleStyle: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('TOPLAM',
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: PosColors.ink2,
+                                letterSpacing: 1)),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(money(total),
+                              style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  color: PosColors.navy)),
                         ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-            const SizedBox(height: 8),
-            ...entries.take(6).map((e) => Padding(
+              const SizedBox(height: 8),
+              ...entries.take(6).map((e) {
+                final i = entries.indexOf(e);
+                final share =
+                    total > 0 ? e.value / total : 0.0;
+                return Padding(
                   padding:
-                      const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
+                      const EdgeInsets.symmetric(vertical: 4),
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: palette[entries
-                                  .indexOf(e) %
-                              palette.length],
-                          borderRadius:
-                              BorderRadius.circular(2),
+                      Row(
+                        children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: _palette[
+                                  i % _palette.length],
+                              borderRadius:
+                                  BorderRadius.circular(3),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                              child: Text(e.key,
+                                  style: const TextStyle(
+                                      fontSize: 13))),
+                          Text(
+                              '%${(share * 100).toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  color: PosColors.ink2)),
+                          const SizedBox(width: 8),
+                          Text(money(e.value),
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight:
+                                      FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      ClipRRect(
+                        borderRadius:
+                            BorderRadius.circular(3),
+                        child: LinearProgressIndicator(
+                          value: share.clamp(0.0, 1.0),
+                          minHeight: 5,
+                          backgroundColor:
+                              PosColors.cardBorder,
+                          valueColor:
+                              AlwaysStoppedAnimation(
+                                  _palette[
+                                      i % _palette.length]),
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                          child: Text(e.key,
-                              style: const TextStyle(
-                                  fontSize: 12))),
-                      Text(money(e.value),
-                          style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold)),
                     ],
                   ),
-                )),
+                );
+              }),
+            ],
           ],
         ),
       ),
     );
   }
+
+  // ---------- 7 günlük çizgi ----------
 
   Widget _trendCard(_Charts c) {
     final spots = [
@@ -298,31 +458,34 @@ class ChartsSection extends StatelessWidget {
       for (var i = 0; i < c.trend.length; i++)
         FlSpot(i.toDouble(), c.trend[i].net),
     ];
-    final maxY = [
+    final allY = [
       ...c.trend.map((p) => p.total),
       ...c.trend.map((p) => p.net),
-      10.0,
-    ].reduce((a, b) => a > b ? a : b) * 1.2;
-    final minY = [
-      ...c.trend.map((p) => p.total),
-      ...c.trend.map((p) => p.net),
-      0.0,
-    ].reduce((a, b) => a < b ? a : b);
+    ];
+    final hi =
+        allY.fold(10.0, (a, b) => a > b ? a : b) * 1.2;
+    final lo =
+        allY.fold(0.0, (a, b) => a < b ? a : b);
+    final weekTotal =
+        c.trend.fold(0.0, (s, p) => s + p.total);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 12, 16, 8),
+        padding: const EdgeInsets.fromLTRB(12, 12, 16, 8),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('7 Günlük Trend (ciro + net kâr)',
-                style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: PosColors.navy)),
-            const SizedBox(height: 4),
+            _header(
+              Icons.show_chart,
+              PosColors.okTx,
+              '7 Günlük Trend',
+              'Ciro + net kâr',
+              _chip('7 gün: ${money(weekTotal)}',
+                  PosColors.okTx),
+            ),
+            const SizedBox(height: 8),
             const Row(
               children: [
-                _Legend(
-                    color: PosColors.navy, label: 'Ciro'),
+                _Legend(color: PosColors.navy, label: 'Ciro'),
                 SizedBox(width: 12),
                 _Legend(
                     color: PosColors.okTx, label: 'Net kâr'),
@@ -333,13 +496,23 @@ class ChartsSection extends StatelessWidget {
               height: 200,
               child: LineChart(
                 LineChartData(
-                  maxY: maxY,
-                  minY: minY < 0 ? minY * 1.2 : 0,
-                  gridData:
-                      const FlGridData(show: false),
+                  maxY: hi,
+                  minY: lo < 0 ? lo * 1.2 : 0,
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (v) =>
+                        FlLine(
+                      color: PosColors.cardBorder,
+                      strokeWidth: 1,
+                    ),
+                  ),
                   borderData: FlBorderData(show: false),
                   lineTouchData: LineTouchData(
                     touchTooltipData: LineTouchTooltipData(
+                      getTooltipColor: (_) => PosColors.navy,
+                      tooltipBorderRadius:
+                          BorderRadius.circular(8),
                       getTooltipItems: (touched) => touched
                           .map((s) => LineTooltipItem(
                                 '${fday(c.trend[s.x.toInt()].day).substring(0, 5)}\n${money(s.y)}',
@@ -347,7 +520,8 @@ class ChartsSection extends StatelessWidget {
                                     color: s.bar.color ??
                                         Colors.white,
                                     fontWeight:
-                                        FontWeight.bold),
+                                        FontWeight.bold,
+                                    fontSize: 12),
                               ))
                           .toList(),
                     ),
@@ -362,11 +536,9 @@ class ChartsSection extends StatelessWidget {
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 52,
+                        reservedSize: 46,
                         getTitlesWidget: (v, _) => Text(
-                          money(v)
-                              .replaceAll('₺', '')
-                              .trim(),
+                          moneyCompact(v),
                           style: const TextStyle(
                               fontSize: 10,
                               color: PosColors.ink2),
@@ -382,12 +554,16 @@ class ChartsSection extends StatelessWidget {
                               i >= c.trend.length) {
                             return const SizedBox.shrink();
                           }
-                          return Text(
-                            fday(c.trend[i].day)
-                                .substring(0, 5),
-                            style: const TextStyle(
-                                fontSize: 10,
-                                color: PosColors.ink2),
+                          return Padding(
+                            padding:
+                                const EdgeInsets.only(top: 4),
+                            child: Text(
+                              fday(c.trend[i].day)
+                                  .substring(0, 5),
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  color: PosColors.ink2),
+                            ),
                           );
                         },
                       ),
@@ -397,23 +573,28 @@ class ChartsSection extends StatelessWidget {
                     LineChartBarData(
                       spots: spots,
                       isCurved: true,
+                      preventCurveOverShooting: true,
                       color: PosColors.navy,
                       barWidth: 3,
-                      dotData:
-                          const FlDotData(show: false),
+                      dotData: const FlDotData(show: true),
                       belowBarData: BarAreaData(
                         show: true,
                         color: PosColors.navy
-                            .withValues(alpha: 0.12),
+                            .withValues(alpha: 0.10),
                       ),
                     ),
                     LineChartBarData(
                       spots: spotsNet,
                       isCurved: true,
+                      preventCurveOverShooting: true,
                       color: PosColors.okTx,
                       barWidth: 2,
-                      dotData:
-                          const FlDotData(show: false),
+                      dotData: const FlDotData(show: true),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: PosColors.okTx
+                            .withValues(alpha: 0.08),
+                      ),
                     ),
                   ],
                 ),
