@@ -29,3 +29,5 @@ windows/flutter/ephemeral/
 
 # Yedekler
 *.bak
+
+devtools_options.yaml
