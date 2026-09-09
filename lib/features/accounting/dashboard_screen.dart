@@ -102,6 +102,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 ],
               ),
               const SizedBox(height: 8),
+              if (s.returns > 0)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.assignment_return,
+                            color: Colors.grey),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                              'İadeler (${s.returnsCount} fiş) cirodan düşüldü',
+                              style: const TextStyle(
+                                  color: Colors.grey)),
+                        ),
+                        Text('-${money(s.returns)}',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ),
+              if (s.returns > 0) const SizedBox(height: 8),
               Card(
                 color: PosColors.navy,
                 child: Padding(

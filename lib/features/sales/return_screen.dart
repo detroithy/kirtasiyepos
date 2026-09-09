@@ -337,10 +337,68 @@ class _ReturnScreenState extends ConsumerState<ReturnScreen> {
               ),
             ),
           ] else if (!_busy && _error == null)
-            const Expanded(
-              child: Center(
-                  child: Text(
-                      'Fiş nodan satış bulunur, kalem kalem iade alınır.')),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(12, 4, 12, 4),
+                    child: Text('Son fişler (dokunarak seç)',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold)),
+                  ),
+                  Expanded(
+                    child: FutureBuilder<List<Sale>>(
+                      future: _db.recentSales(),
+                      builder: (_, snap) {
+                        if (!snap.hasData) {
+                          return const Center(
+                              child:
+                                  CircularProgressIndicator());
+                        }
+                        final list = snap.data!.where((s) =>
+                            !s.receiptNo
+                                .startsWith('İADE-'));
+                        if (list.isEmpty) {
+                          return const Center(
+                              child: Text('Fiş yok.'));
+                        }
+                        return ListView.builder(
+                          itemCount: list.length,
+                          itemBuilder: (_, i) {
+                            final s = list.elementAt(i);
+                            return Card(
+                              margin:
+                                  const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4),
+                              child: ListTile(
+                                title: Text(s.receiptNo,
+                                    style: const TextStyle(
+                                        fontWeight:
+                                            FontWeight.bold,
+                                        fontSize: 14)),
+                                subtitle: Text(
+                                    '${fdate(s.date)} • ${s.paymentType}'),
+                                trailing: Text(
+                                    money(s.total),
+                                    style: const TextStyle(
+                                        fontWeight:
+                                            FontWeight.bold)),
+                                onTap: () {
+                                  _receiptCtrl.text =
+                                      s.receiptNo;
+                                  _find();
+                                },
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
         ],
       ),

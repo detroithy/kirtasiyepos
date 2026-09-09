@@ -1715,6 +1715,14 @@ class AppDb extends _$AppDb {
 
   // ================= İade =================
 
+  /// Son fişler (iade ekranı listesi, yeniden eskiye).
+  Future<List<Sale>> recentSales({int limit = 50}) {
+    return (select(sales)
+          ..orderBy([(t) => OrderingTerm.desc(t.date)])
+          ..limit(limit))
+        .get();
+  }
+
   /// Fiş no ile satış bul (iade ekranı).
   Future<Sale?> findSaleByReceipt(String receiptNo) {
     return (select(sales)
@@ -1760,11 +1768,16 @@ class AppDb extends _$AppDb {
     final rows = await (select(sales)
           ..where((t) => t.date.isBetweenValues(start, end)))
         .get();
-    double total = 0, kdv = 0, profit = 0;
+    double total = 0, kdv = 0, profit = 0, returns = 0;
+    var returnsCount = 0;
     for (final r in rows) {
       total += r.total;
       kdv += r.kdvTotal;
       profit += r.profitTotal;
+      if (r.total < 0) {
+        returns += -r.total;
+        returnsCount++;
+      }
     }
     final exps = await (select(expenses)
           ..where((t) => t.date.isBetweenValues(start, end)))
@@ -1776,6 +1789,8 @@ class AppDb extends _$AppDb {
       profit: profit,
       expenses: expTotal,
       receipts: rows.length,
+      returns: returns,
+      returnsCount: returnsCount,
     );
   }
 
@@ -1784,11 +1799,16 @@ class AppDb extends _$AppDb {
     final rows = await (select(sales)
           ..where((t) => t.date.isBetweenValues(start, end.nextDay())))
         .get();
-    double total = 0, kdv = 0, profit = 0;
+    double total = 0, kdv = 0, profit = 0, returns = 0;
+    var returnsCount = 0;
     for (final r in rows) {
       total += r.total;
       kdv += r.kdvTotal;
       profit += r.profitTotal;
+      if (r.total < 0) {
+        returns += -r.total;
+        returnsCount++;
+      }
     }
     final kdvBreak = <double, KdvSlice>{};
     final payTotals = <String, double>{};
@@ -1825,6 +1845,8 @@ class AppDb extends _$AppDb {
       profit: profit,
       expenses: exps.fold<double>(0, (s, e) => s + e.amount),
       receipts: rows.length,
+      returns: returns,
+      returnsCount: returnsCount,
       kdvBreakdown: kdvBreak,
       payTotals: payTotals,
       payCounts: payCounts,
@@ -1887,20 +1909,26 @@ class SaleResult {
 
 class DaySummary {
   final double total, kdv, profit, expenses;
-  final int receipts;
+
+  /// İadeler toplamı (pozitif sayı) ve iade fiş adedi.
+  final double returns;
+  final int receipts, returnsCount;
   const DaySummary({
     required this.total,
     required this.kdv,
     required this.profit,
     required this.expenses,
     required this.receipts,
+    this.returns = 0,
+    this.returnsCount = 0,
   });
   double get netProfit => profit - expenses;
 }
 
 class RangeSummary {
   final double total, kdv, profit, expenses;
-  final int receipts;
+  final double returns;
+  final int receipts, returnsCount;
   final Map<double, KdvSlice> kdvBreakdown;
   final Map<String, double> payTotals;
   final Map<String, int> payCounts;
@@ -1910,6 +1938,8 @@ class RangeSummary {
     required this.profit,
     required this.expenses,
     required this.receipts,
+    this.returns = 0,
+    this.returnsCount = 0,
     required this.kdvBreakdown,
     required this.payTotals,
     required this.payCounts,

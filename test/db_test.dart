@@ -340,4 +340,70 @@ void main() {
     expect(day.total, 15);
     expect(day.receipts, 2);
   });
+
+  test('günlük tablo: satış + indirim + iade + gider tutarlıdır',
+      () async {
+    final p = (await db.searchProducts('Kurşun Kalem')).single;
+    Future<void> sell(
+        {required double qty,
+        required double unit,
+        double discount = 0,
+        String no = ''}) async {
+      final kdv = kdvTutar(unit, p.kdvRate) * qty;
+      final kar = satirKar(unit, p.buyPrice, p.kdvRate, qty);
+      final f = unit * qty > 0
+          ? (unit * qty - discount) / (unit * qty)
+          : 1.0;
+      await db.completeSale(
+        items: [
+          SaleItemsCompanion.insert(
+            saleId: 0,
+            productId: drift.Value(p.id),
+            name: p.name,
+            qty: qty,
+            unitPrice: unit,
+            kdvRate: drift.Value(p.kdvRate),
+            kdvAmount: drift.Value(kdv * f),
+            buyPriceSnapshot: drift.Value(p.buyPrice),
+            profit: drift.Value(kar * f),
+            uuid: newUuid(),
+            saleUuid: const drift.Value(''),
+          ),
+        ],
+        total: unit * qty - discount,
+        kdvTotal: kdv * f,
+        profitTotal: kar * f,
+        discount: discount,
+        receiptNo: no.isEmpty ? null : no,
+      );
+    }
+
+    // 2x15=30 satış (karsız-kdvli ham: kdv 5, kar 9) + 10 gider:
+    await sell(qty: 2, unit: 15, no: 'K1-A');
+    await db.insertExpense(ExpensesCompanion.insert(
+      date: drift.Value(DateTime.now()),
+      category: 'Kira',
+      amount: 10,
+      uuid: newUuid(),
+    ));
+    // 1 adet iade (-15, kdv -2.5, kar -4.5):
+    await sell(qty: -1, unit: 15, no: 'K1-B');
+    final day = await db.daySummary(DateTime.now());
+    // Ciro 30-15=15, kar 9-4.5=4.5, gider 10 -> net -5.5 (doğru: gider ciroyu aştı)
+    expect(day.total, 15);
+    expect(day.profit, closeTo(4.5, 0.001));
+    expect(day.expenses, 10);
+    expect(day.netProfit, closeTo(-5.5, 0.001));
+    expect(day.returns, 15);
+    expect(day.returnsCount, 1);
+    expect(day.receipts, 2);
+
+    final r = await db.rangeSummary(
+      DateTime.now().subtract(const Duration(days: 1)),
+      DateTime.now(),
+    );
+    expect(r.total, 15);
+    expect(r.returns, 15);
+    expect(r.netProfit, closeTo(-5.5, 0.001));
+  });
 }
