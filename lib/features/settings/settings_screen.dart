@@ -510,18 +510,51 @@ class _DiagCardState extends State<DiagCard> {
             ),
           Padding(
             padding: const EdgeInsets.all(8),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _busy ? null : _load,
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('Yenile'),
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _busy ? null : _load,
+                        icon:
+                            const Icon(Icons.refresh, size: 18),
+                        label: const Text('Yenile'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.tonalIcon(
+                        onPressed: _busy
+                            ? null
+                            : () async {
+                                final messenger =
+                                    ScaffoldMessenger.of(
+                                        context);
+                                setState(() => _busy = true);
+                                try {
+                                  final n =
+                                      await Cloud.instance
+                                          .requeueAndSync();
+                                  messenger.showSnackBar(SnackBar(
+                                      content: Text(
+                                          '$n satır kuyruğa kuruldu, senkron çalıştı.')));
+                                } finally {
+                                  await _load();
+                                }
+                              },
+                        icon: const Icon(Icons.upload_rounded,
+                            size: 18),
+                        label:
+                            const Text('Tümünü Gönder'),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: FilledButton.tonalIcon(
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
                     onPressed: _busy
                         ? null
                         : () async {
@@ -529,18 +562,19 @@ class _DiagCardState extends State<DiagCard> {
                                 ScaffoldMessenger.of(context);
                             setState(() => _busy = true);
                             try {
-                              final n = await Cloud.instance
-                                  .requeueAndSync();
-                              messenger.showSnackBar(SnackBar(
-                                  content: Text(
-                                      '$n satır kuyruğa kuruldu, senkron çalıştı.')));
+                              await Cloud.instance.deepSync();
+                              messenger.showSnackBar(
+                                  const SnackBar(
+                                      content: Text(
+                                          'Derin uzlaşı çalıştı, sayaçları karşılaştırın.')));
                             } finally {
                               await _load();
                             }
                           },
-                    icon:
-                        const Icon(Icons.upload_rounded, size: 18),
-                    label: const Text('Tümünü Gönder'),
+                    icon: const Icon(Icons.sync_problem,
+                        size: 18),
+                    label: const Text(
+                        'Derin Uzlaşı (eksik satırları bul)'),
                   ),
                 ),
               ],

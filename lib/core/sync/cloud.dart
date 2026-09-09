@@ -68,6 +68,7 @@ class Cloud {
   Timer? _debounce;
   Timer? _periodic;
   bool _running = false;
+  DateTime? _lastStartAt;
   bool _resumedOnce = false;
 
   static const kUrl = 'sb_url';
@@ -121,7 +122,18 @@ class Cloud {
   }
 
   /// Açılışta bir kez çağrılır. Yapılandırma yoksa sessizce kapalı kalır.
+  /// NOT: hot restart'ta singleton yaşar; yarım kalmış senkronun
+  /// bayrakları (_running, ölü kanal) burada SIFIRLANIR, yoksa
+  /// senkron sessizce ölür (hata da vermez).
   Future<void> init(AppDb db) async {
+    _running = false;
+    _lastStartAt = null;
+    _debounce?.cancel();
+    _debounce = null;
+    try {
+      await _channel?.unsubscribe();
+    } catch (_) {}
+    _channel = null;
     _db = db;
     final p = await _prefs;
     db.deviceCode = p.getString(kDevice) ?? 'K1';
@@ -171,7 +183,19 @@ class Cloud {
   }
 
   Future<void> _periodicTick() async {
-    if (_running || !isAuthed) return;
+    // Watchdog: 5 dk'dır "çalışıyor" görünen senkron takılmıştır
+    // (normal senkron saniyeler sürer) — bayrağı indir, dirilt.
+    if (_running) {
+      final start = _lastStartAt;
+      if (start != null &&
+          DateTime.now().difference(start) >
+              const Duration(minutes: 5)) {
+        _running = false;
+      } else {
+        return;
+      }
+    }
+    if (!isAuthed) return;
     try {
       final r = await Connectivity().checkConnectivity();
       if (r.contains(ConnectivityResult.none)) return;
@@ -302,6 +326,7 @@ class Cloud {
   Future<void> syncNow() async {
     if (_running || _db == null || _sb == null || !isAuthed) return;
     _running = true;
+    _lastStartAt = DateTime.now();
     _set(const CloudStatus(mode: CloudMode.syncing));
     try {
       // İlk eşleşme: imleçler boşsa tüm yerel veri kuyruğa kurulur
@@ -324,6 +349,18 @@ class Cloud {
     } finally {
       _running = false;
     }
+  }
+
+  /// Derin uzlaşı: tam-uzlaşı imlecini sıfırla + hemen senkronla.
+  /// Takılmış/şaşırmış durumlarda Tanı kartındaki düğme çağırır.
+  Future<void> deepSync() async {
+    _running = false;
+    if (_db != null) {
+      await ( _db!.delete(_db!.syncState)
+            ..where((t) => t.entity.equals('full_sync')))
+          .go();
+    }
+    await syncNow();
   }
 
   // ================= PUSH =================
