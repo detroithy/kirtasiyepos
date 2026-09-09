@@ -107,6 +107,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 class CloudStrip extends StatelessWidget {
   const CloudStrip({super.key});
 
+  static String _clock(DateTime d) =>
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}:${d.second.toString().padLeft(2, '0')}';
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<CloudStatus>(
@@ -119,9 +122,12 @@ class CloudStrip extends StatelessWidget {
             return const SizedBox.shrink();
           case CloudMode.online:
             bg = PosColors.okBg;
+            final clock = s.syncedAt == null
+                ? ''
+                : ' • ${_clock(s.syncedAt!)}';
             text = s.pending > 0
-                ? '🟢 Çevrimiçi • ${s.pending} işlem bekliyor'
-                : '🟢 Çevrimiçi • Senkron';
+                ? '🟢 Çevrimiçi • ${s.pending} işlem bekliyor$clock'
+                : '🟢 Çevrimiçi • Senkron$clock';
             break;
           case CloudMode.offline:
             bg = PosColors.warnBg;

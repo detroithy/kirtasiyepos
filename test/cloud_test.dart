@@ -26,8 +26,7 @@ void main() {
     expect(Cloud.normalizeSupabaseUrl(''), isNull);
   });
 
-  test('push sırası üst satırları öne alır', () {
-    expect(pushRank('categories'), lessThan(pushRank('products')));
+  test('push sırası üst satırları öne alır', () {    expect(pushRank('categories'), lessThan(pushRank('products')));
     expect(pushRank('products'), lessThan(pushRank('sales')));
     expect(pushRank('sales'), lessThan(pushRank('sale_items')));
     expect(pushRank('sales'), lessThan(pushRank('stock_movements')));
@@ -44,5 +43,12 @@ void main() {
       });
     expect(order.indexOf('categories'), lessThan(order.indexOf('products')));
     expect(order.indexOf('products'), lessThan(order.indexOf('sales')));
+  });
+
+  test('imleç örtüşmesi 10 dk geriden verir', () {
+    expect(overlapCutoff(null), isNull);
+    final cur = DateTime(2026, 9, 9, 12, 0, 0);
+    expect(
+        overlapCutoff(cur), DateTime(2026, 9, 9, 11, 50, 0));
   });
 }

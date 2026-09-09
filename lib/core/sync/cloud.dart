@@ -15,8 +15,21 @@ class CloudStatus {
   final CloudMode mode;
   final int pending;
   final String? message;
-  const CloudStatus({required this.mode, this.pending = 0, this.message});
+
+  /// Son başarılı senkronun saati (canlı kanıtı).
+  final DateTime? syncedAt;
+  const CloudStatus(
+      {required this.mode,
+      this.pending = 0,
+      this.message,
+      this.syncedAt});
 }
+
+/// İmleç örtüşmesi: saat farkı (telefon-PC) + çekiş sırası yarışı
+/// yüzünden imlecin biraz gerisinde kalan satırlar kaybolmasın diye
+/// 10 dk geriden çekilir. Uygulama uuid-idempotent, tekrar zararsız.
+DateTime? overlapCutoff(DateTime? cursor) =>
+    cursor?.subtract(const Duration(minutes: 10));
 
 /// Push sırası: üst satırlar (kategori/tedarikçi) önce itilir,
 /// yoksa bulut FK hatası verir. Kuyruk id sırası bunu garanti etmez
@@ -53,7 +66,9 @@ class Cloud {
   StreamSubscription<List<ConnectivityResult>>? _connSub;
   RealtimeChannel? _channel;
   Timer? _debounce;
+  Timer? _periodic;
   bool _running = false;
+  bool _resumedOnce = false;
 
   static const kUrl = 'sb_url';
   static const kKey = 'sb_key';
@@ -142,7 +157,28 @@ class Cloud {
         .listen((_) => _onConnectivity());
     // Oturum değişince rozet/kart kendini güncellesin:
     sb.auth.onAuthStateChange.listen((_) => refreshPending());
+    // Sürekli senkron: kaçan realtime olayı + uyku sonrası için
+    // 45 sn'de bir yoklama (çevrimiçi + giriş varsa).
+    _periodic?.cancel();
+    _periodic = Timer.periodic(
+        const Duration(seconds: 45), (_) => _periodicTick());
+    // Uygulamaya dönüşte hemen tazele (tek seferlik kayıt):
+    if (!_resumedOnce) {
+      _resumedOnce = true;
+      WidgetsBinding.instance.addObserver(_ResumeSync());
+    }
     await _onConnectivity(initial: true);
+  }
+
+  Future<void> _periodicTick() async {
+    if (_running || !isAuthed) return;
+    try {
+      final r = await Connectivity().checkConnectivity();
+      if (r.contains(ConnectivityResult.none)) return;
+    } catch (_) {
+      return;
+    }
+    await syncNow();
   }
 
   Future<void> _onConnectivity({bool initial = false}) async {
@@ -211,7 +247,8 @@ class Cloud {
     final p = await _db!.pendingCount();
     final cur = cloudStatus.value;
     if (cur.mode != CloudMode.syncing) {
-      _set(CloudStatus(mode: cur.mode, pending: p));
+      _set(CloudStatus(
+          mode: cur.mode, pending: p, syncedAt: cur.syncedAt));
     }
   }
 
@@ -247,6 +284,8 @@ class Cloud {
     if (lastPushError != null) out['push_hata'] = lastPushError!;
     final m = cloudStatus.value.message;
     if (m != null) out['son_hata'] = m;
+    final sa = cloudStatus.value.syncedAt;
+    if (sa != null) out['son_senkron'] = sa.toString();
     return out;
   }
 
@@ -274,7 +313,8 @@ class Cloud {
       await _pull();
       _subscribe();
       final p = await _db!.pendingCount();
-      _set(CloudStatus(mode: CloudMode.online, pending: p));
+      _set(CloudStatus(
+          mode: CloudMode.online, pending: p, syncedAt: DateTime.now()));
     } catch (e) {
       final p = await _db!.pendingCount();
       _set(CloudStatus(
@@ -600,9 +640,10 @@ class Cloud {
       }
     }
 
-    // Değişmezler: imleçten sonrası.
+    // Değişmezler: imleçten sonrası (10 dk örtüşmeli — saat farkı
+    // ve çekiş-sırası yarışında satır kaybolmasın; uuid-idempotent).
     Future<List> since(String table, String col) async {
-      final cur = await db.lastPulled(table);
+      final cur = overlapCutoff(await db.lastPulled(table));
       if (cur == null) {
         return await sb.from(table).select().order(col);
       }
@@ -668,6 +709,16 @@ class Cloud {
   }
 
   void _set(CloudStatus s) => cloudStatus.value = s;
+}
+
+/// Uygulamaya dönüşte (arka plandan) hemen senkronla.
+class _ResumeSync with WidgetsBindingObserver {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      Cloud.instance.syncNow();
+    }
+  }
 }
 
 /// FutureBuilder'lı ekranlar için otomatik tazeleme:

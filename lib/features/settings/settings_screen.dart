@@ -495,6 +495,7 @@ class _DiagCardState extends State<DiagCard> {
                   const Divider(),
                   _row('Kuyruk', _info!['kuyruk'] ?? '?'),
                   _row('Son çekiş', _info!['son_cekis'] ?? '-'),
+                  _row('Son senkron', _info!['son_senkron'] ?? '-'),
                   if (_info!.containsKey('push_hata'))
                     _row('Push hatası', _info!['push_hata']!,
                         err: true),
