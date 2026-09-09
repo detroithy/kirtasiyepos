@@ -104,7 +104,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const Card(
             child: ListTile(
               leading: Icon(Icons.info_outline),
-              title: Text('KırtasiyePOS v0.2 (Faz-2 ✅)'),
+              title: Text('KırtasiyePOS v0.3 (Faz-3 senkron)'),
               subtitle: Text(
                   'Tek kasa • Offline • SQLite\n'
                   'Faz-1: stok, satış, KDV, ciro, kar, rapor.\n'

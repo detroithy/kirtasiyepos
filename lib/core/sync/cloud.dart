@@ -29,6 +29,12 @@ int pushRank(String entity) => switch (entity) {
       _ => 9,
     };
 
+/// Benzersizlik çakışması mı? (409 / 23505)
+bool _isConflict(Object e) {
+  final msg = e.toString();
+  return msg.contains('23505') || msg.contains('duplicate key');
+}
+
 /// Rozet bu dinleyiciyle beslenir (anashell üst barı).
 final cloudStatus =
     ValueNotifier<CloudStatus>(const CloudStatus(mode: CloudMode.off));
@@ -399,8 +405,10 @@ class Cloud {
                 null;
           }
           local = lfound ? 'VAR' : 'YOK';
+          final short =
+              uuid.length <= 8 ? uuid : uuid.substring(0, 8);
           parts.add(
-              '$table=${uuid.substring(0, 8)}: localde $local, bulutta ${row == null ? 'YOK' : 'VAR'}');
+              '$table=$short: localde $local, bulutta ${row == null ? 'YOK' : 'VAR'}');
         } catch (_) {
           parts.add('$table: bakılamadı');
         }
@@ -428,12 +436,14 @@ class Cloud {
           final pu = payload[key] as String?;
           if (pu == null) continue;
           Map<String, dynamic>? parentPayload;
+          String? parentName;
           if (parent == 'categories') {
             final c = await (db.select(db.categories)
                   ..where((t) => t.uuid.equals(pu)))
                 .getSingleOrNull();
             if (c == null) return false;
             parentPayload = db.categoryPayload(c);
+            parentName = c.name;
           } else {
             final s = await (db.select(db.suppliers)
                   ..where((t) => t.uuid.equals(pu)))
@@ -441,7 +451,26 @@ class Cloud {
             if (s == null) return false;
             parentPayload = db.supplierPayload(s);
           }
-          await sb.from(parent).upsert(parentPayload, onConflict: 'uuid');
+          try {
+            await sb
+                .from(parent)
+                .upsert(parentPayload, onConflict: 'uuid');
+          } catch (pe) {
+            // Üst satır ada takıldıysa (başka uuid ile aynı ad):
+            // bulutun kazananını benimse, kuyruk onarılır.
+            if (!_isConflict(pe) || parent != 'categories') {
+              return false;
+            }
+            final existing = await sb
+                .from('categories')
+                .select()
+                .eq('name', parentName!)
+                .maybeSingle();
+            if (existing == null) return false;
+            final winner =
+                Map<String, dynamic>.from(existing as Map);
+            await db.adoptCategoryUuid(pu, winner['uuid'] as String);
+          }
         }
         return true;
       }
@@ -452,7 +481,24 @@ class Cloud {
               ..where((t) => t.uuid.equals(su)))
             .getSingleOrNull();
         if (sale == null) return false;
-        await sb.from('sales').upsert(db.salePayload(sale), onConflict: 'uuid');
+        try {
+          await sb
+              .from('sales')
+              .upsert(db.salePayload(sale), onConflict: 'uuid');
+        } catch (pe) {
+          // Fiş no çakışması: aynı uuid ise sorun yok, farklı uuid ise
+          // iki cihazda aynı K kodu kullanılıyor demektir.
+          if (!_isConflict(pe)) return false;
+          final existing = await sb
+              .from('sales')
+              .select('uuid')
+              .eq('receipt_no', sale.receiptNo)
+              .maybeSingle();
+          if (existing == null) return false;
+          final winner =
+              Map<String, dynamic>.from(existing as Map);
+          if (winner['uuid'] != su) return false;
+        }
         return true;
       }
       if (op.entity == 'stock_movements') {
@@ -474,8 +520,7 @@ class Cloud {
   /// Push'ta benzersizlik çakışması (409/23505): bulutun kazanan
   /// kaydını benimseyip kuyruğu onarır. Başarılıysa true.
   Future<bool> _resolveConflict(QueuedOp op, Object e) async {
-    final msg = e.toString();
-    if (!msg.contains('23505') && !msg.contains('duplicate key')) {
+    if (!_isConflict(e)) {
       return false;
     }
     final db = _db!, sb = _sb!;
