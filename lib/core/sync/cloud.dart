@@ -292,6 +292,11 @@ class Cloud {
               .upsert(payload, onConflict: 'uuid');
           done.add(op.id);
         } catch (e) {
+          // Çift kayıt çakışması çözülebilirse kuyrukta takılma:
+          if (await _resolveConflict(op, e)) {
+            await db.dropOps([op.id]);
+            continue;
+          }
           lastPushError =
               '[${op.entity}:${op.rowUuid}] ${e.toString().split('\n').first}';
           await db.bumpAttempts(op.id);
@@ -303,6 +308,52 @@ class Cloud {
       if (failed) break;
       ops = await db.pendingOps(limit: 200);
     }
+  }
+
+  /// Push'ta benzersizlik çakışması (409/23505): bulutun kazanan
+  /// kaydını benimseyip kuyruğu onarır. Başarılıysa true.
+  Future<bool> _resolveConflict(QueuedOp op, Object e) async {
+    final msg = e.toString();
+    if (!msg.contains('23505') && !msg.contains('duplicate key')) {
+      return false;
+    }
+    final db = _db!, sb = _sb!;
+    try {
+      final payload = jsonDecode(op.payload) as Map<String, dynamic>;
+      if (op.entity == 'categories') {
+        final name = payload['name'] as String?;
+        if (name == null) return false;
+        final existing = await sb
+            .from('categories')
+            .select()
+            .eq('name', name)
+            .maybeSingle();
+        if (existing == null) return false;
+        final winner =
+            Map<String, dynamic>.from(existing as Map);
+        await db.adoptCategoryUuid(
+            payload['uuid'] as String, winner['uuid'] as String);
+        return true;
+      }
+      if (op.entity == 'products') {
+        final barcode = payload['barcode'] as String?;
+        if (barcode == null || barcode.isEmpty) return false;
+        final existing = await sb
+            .from('products')
+            .select()
+            .eq('barcode', barcode)
+            .maybeSingle();
+        if (existing == null) return false;
+        final winner =
+            Map<String, dynamic>.from(existing as Map);
+        await db.adoptProductUuid(
+            payload['uuid'] as String, winner['uuid'] as String);
+        return true;
+      }
+    } catch (_) {
+      return false;
+    }
+    return false;
   }
 
   // ================= PULL =================

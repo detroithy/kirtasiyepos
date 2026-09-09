@@ -454,6 +454,7 @@ class AppDb extends _$AppDb {
   /// Önce eski kuyruğu temizler (güncel durum yeniden kurulur).
   Future<int> requeueAll() {
     return transaction(() async {
+      await normalizeSeeds();
       await delete(syncQueue).go();
       var n = 0;
       for (final c in await select(categories).get()) {
@@ -560,12 +561,23 @@ class AppDb extends _$AppDb {
           ..where((t) => t.uuid.equals(uuid)))
         .getSingleOrNull();
     if (local == null) {
+      // Aynı adlı satır varsa uuid'yi benimse (yerel UNIQUE patlamasın):
+      final sameName = await (select(categories)
+            ..where(
+                (t) => t.name.equals(m['name'] as String? ?? '')))
+          .getSingleOrNull();
+      if (sameName != null) {
+        await adoptCategoryUuid(sameName.uuid, uuid);
+        return;
+      }
       await into(categories).insert(CategoriesCompanion.insert(
         name: m['name'] as String,
         uuid: uuid,
         updatedAt: Value(remoteUpdated ?? DateTime.now()),
       ));
-    } else if (remoteUpdated != null &&
+      return;
+    }
+    if (remoteUpdated != null &&
         remoteUpdated.isAfter(local.updatedAt)) {
       await (update(categories)..where((t) => t.id.equals(local.id)))
           .write(CategoriesCompanion(
@@ -598,6 +610,165 @@ class AppDb extends _$AppDb {
         phone: Value(m['phone'] as String?),
         updatedAt: Value(remoteUpdated),
       ));
+    }
+  }
+
+  /// Kategori uuid benimsetme (push 409 / pull birleştirme çözümü):
+  /// eski uuid'li satır yeniye taşınır, ürünler yeni satıra bağlanır,
+  /// bekleyen ürün payloadlarındaki category_uuid yenilenir.
+  Future<void> adoptCategoryUuid(String oldUuid, String newUuid) {
+    return transaction(() async {
+      final oldRow = await (select(categories)
+            ..where((t) => t.uuid.equals(oldUuid)))
+          .getSingleOrNull();
+      if (oldRow == null) return;
+      final clash = await (select(categories)
+            ..where((t) => t.uuid.equals(newUuid)))
+          .getSingleOrNull();
+      if (clash != null && clash.id != oldRow.id) {
+        await (update(products)
+              ..where((t) => t.categoryId.equals(clash.id)))
+            .write(ProductsCompanion(categoryId: Value(oldRow.id)));
+        await (delete(categories)
+              ..where((t) => t.id.equals(clash.id)))
+            .go();
+      }
+      await (update(categories)
+            ..where((t) => t.id.equals(oldRow.id)))
+          .write(CategoriesCompanion(
+        uuid: Value(newUuid),
+        updatedAt: Value(DateTime.now()),
+      ));
+      await rewriteCategoryUuid(oldUuid, newUuid);
+      final fresh = await (select(categories)
+            ..where((t) => t.id.equals(oldRow.id)))
+          .getSingle();
+      await enqueue(
+          table: 'categories',
+          rowUuid: newUuid,
+          payload: categoryPayload(fresh));
+    });
+  }
+
+  /// Bekleyen ürün payloadlarındaki eski category_uuid'yi yeniler,
+  /// eski uuid'li kategori kuyruk satırlarını düşürür.
+  Future<void> rewriteCategoryUuid(String oldUuid, String newUuid) async {
+    final ops = await pendingOps(limit: 2000);
+    for (final op in ops) {
+      if (op.entity == 'categories' && op.rowUuid == oldUuid) {
+        await (delete(syncQueue)..where((t) => t.id.equals(op.id))).go();
+        continue;
+      }
+      if (op.entity != 'products') continue;
+      final map = jsonDecode(op.payload) as Map<String, dynamic>;
+      if (map['category_uuid'] == oldUuid) {
+        map['category_uuid'] = newUuid;
+        await (update(syncQueue)..where((t) => t.id.equals(op.id)))
+            .write(SyncQueueCompanion(payload: Value(jsonEncode(map))));
+      }
+    }
+  }
+
+  /// Ürün uuid benimsetme (push 409 barkod çözümü): satır geçmişi
+  /// (satış satırları + hareketler) yeni uuid'ye taşınır, bekleyen
+  /// payloadlar yenilenir, taze durum kuyruğa kurulur.
+  Future<void> adoptProductUuid(String oldUuid, String newUuid) {
+    return transaction(() async {
+      final row = await (select(products)
+            ..where((t) => t.uuid.equals(oldUuid)))
+          .getSingleOrNull();
+      if (row == null) return;
+      final clash = await (select(products)
+            ..where((t) => t.uuid.equals(newUuid)))
+          .getSingleOrNull();
+      if (clash != null && clash.id != row.id) {
+        await (update(saleItems)
+              ..where((t) => t.productId.equals(clash.id)))
+            .write(SaleItemsCompanion(productId: Value(row.id)));
+        await (update(stockMovements)
+              ..where((t) => t.productId.equals(clash.id)))
+            .write(StockMovementsCompanion(productId: Value(row.id)));
+        await (delete(products)..where((t) => t.id.equals(clash.id)))
+            .go();
+      }
+      await (update(products)..where((t) => t.id.equals(row.id))).write(
+        ProductsCompanion(
+          uuid: Value(newUuid),
+          updatedAt: Value(DateTime.now()),
+          syncStatus: const Value(1),
+        ),
+      );
+      await rewriteProductUuid(oldUuid, newUuid);
+      final fresh = await (select(products)
+            ..where((t) => t.id.equals(row.id)))
+          .getSingle();
+      await enqueue(
+          table: 'products',
+          rowUuid: newUuid,
+          payload: await productPayload(fresh));
+    });
+  }
+
+  /// Bekleyen satış-satırı/hareket payloadlarındaki eski product_uuid'yi
+  /// yeniler, eski uuid'li ürün kuyruk satırlarını düşürür.
+  Future<void> rewriteProductUuid(String oldUuid, String newUuid) async {
+    final ops = await pendingOps(limit: 2000);
+    for (final op in ops) {
+      if (op.entity == 'products' && op.rowUuid == oldUuid) {
+        await (delete(syncQueue)..where((t) => t.id.equals(op.id))).go();
+        continue;
+      }
+      if (op.entity != 'sale_items' && op.entity != 'stock_movements') {
+        continue;
+      }
+      final map = jsonDecode(op.payload) as Map<String, dynamic>;
+      if (map['product_uuid'] == oldUuid) {
+        map['product_uuid'] = newUuid;
+        await (update(syncQueue)..where((t) => t.id.equals(op.id)))
+            .write(SyncQueueCompanion(payload: Value(jsonEncode(map))));
+      }
+    }
+  }
+
+  /// Tohum satırların uuid'sini sabite çeker (cihazlar arası aynı kimlik).
+  /// Kuyruğa dokunmaz; requeueAll öncesi çağrılır.
+  Future<void> normalizeSeeds() async {
+    const cats = ['Defter', 'Kalem', 'Kağıt'];
+    for (final n in cats) {
+      final row = await (select(categories)
+            ..where((t) => t.name.equals(n)))
+          .getSingleOrNull();
+      final want = seedUuid('category', n);
+      if (row != null && row.uuid != want) {
+        await (update(categories)..where((t) => t.id.equals(row.id)))
+            .write(CategoriesCompanion(
+          uuid: Value(want),
+          updatedAt: Value(DateTime.now()),
+        ));
+      }
+    }
+    final prods = await select(products).get();
+    for (final p in prods) {
+      String? want;
+      if (p.barcode == '868000000001') {
+        want = seedUuid('product', 'Çizgili Defter A4 80 Yaprak');
+      } else if (p.barcode == null || p.barcode!.isEmpty) {
+        const names = [
+          'Kurşun Kalem HB',
+          'Fotokopi Kağıdı A4 80gr (500)'
+        ];
+        if (names.contains(p.name)) {
+          want = seedUuid('product', p.name);
+        }
+      }
+      if (want != null && p.uuid != want) {
+        await (update(products)..where((t) => t.id.equals(p.id)))
+            .write(ProductsCompanion(
+          uuid: Value(want),
+          updatedAt: Value(DateTime.now()),
+          syncStatus: const Value(1),
+        ));
+      }
     }
   }
 
@@ -634,6 +805,9 @@ class AppDb extends _$AppDb {
     final supId = await _supplierIdForUuid(m['supplier_uuid'] as String?);
     double d(dynamic v) => (v as num?)?.toDouble() ?? 0;
     if (local == null) {
+      // Bilinmeyen uuid + silinmiş = başkasının çöpü; dokunma
+      // (aksi halde yaşayan ikizi yanlışlıkla siler).
+      if (m['is_deleted'] == true) return;
       // Aynı ürün başka uuid ile kayıtlıysa BİRLEŞTİR (çift kayıt önlenir):
       final twin = await _findTwin(m);
       if (twin != null) {

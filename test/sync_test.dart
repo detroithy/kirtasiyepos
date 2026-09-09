@@ -79,4 +79,92 @@ void main() {
     expect(await db.pendingCount(), 6);
     await db.close();
   });
+
+  test('normalizeSeeds eski tohum uuidlerini sabitler', () async {
+    final db = AppDb.forTest(NativeDatabase.memory());
+    // Eski sürümden kalma rastgele uuid'li tohumlar:
+    final catId = await db
+        .into(db.categories)
+        .insert(CategoriesCompanion.insert(
+          name: 'Defter',
+          uuid: newUuid(),
+        ));
+    final prodId = await db
+        .into(db.products)
+        .insert(ProductsCompanion.insert(
+          barcode: const drift.Value('868000000001'),
+          name: 'Çizgili Defter A4 80 Yaprak',
+          categoryId: drift.Value(catId),
+          sellPrice: const drift.Value(75),
+          uuid: newUuid(),
+        ));
+    await db.normalizeSeeds();
+    final cat = await (db.select(db.categories)
+          ..where((t) => t.id.equals(catId)))
+        .getSingle();
+    final prod = await (db.select(db.products)
+          ..where((t) => t.id.equals(prodId)))
+        .getSingle();
+    expect(cat.uuid, seedUuid('category', 'Defter'));
+    expect(prod.uuid,
+        seedUuid('product', 'Çizgili Defter A4 80 Yaprak'));
+    await db.close();
+  });
+
+  test('kategori çekişte ada göre birleşir (yerel UNIQUE patlamaz)',
+      () async {
+    final db = AppDb.forTest(NativeDatabase.memory());
+    await db.into(db.categories).insert(
+        CategoriesCompanion.insert(
+            name: 'Defter', uuid: newUuid()));
+    // Bulut başka uuid ile aynı adı gönderir:
+    await db.applyCategory({
+      'uuid': newUuid(),
+      'name': 'Defter',
+      'updated_at': DateTime.now()
+          .add(const Duration(minutes: 1))
+          .toIso8601String(),
+    });
+    final all = await db.select(db.categories).get();
+    expect(all.where((c) => c.name == 'Defter').length, 1);
+    await db.close();
+  });
+
+  test('adoptCategoryUuid ürünleri yeni satıra taşır', () async {
+    final db = AppDb.forTest(NativeDatabase.memory());
+    final c1 = await db
+        .into(db.categories)
+        .insert(CategoriesCompanion.insert(
+          name: 'Defter',
+          uuid: newUuid(),
+        ));
+    final c2 = await db
+        .into(db.categories)
+        .insert(CategoriesCompanion.insert(
+          name: 'Eski',
+          uuid: newUuid(),
+        ));
+    await db.insertProduct(ProductsCompanion.insert(
+      name: 'X',
+      categoryId: drift.Value(c2),
+      sellPrice: const drift.Value(10),
+      uuid: newUuid(),
+    ));
+    final u1 = (await (db.select(db.categories)
+              ..where((t) => t.id.equals(c1)))
+            .getSingle())
+        .uuid;
+    final u2 = (await (db.select(db.categories)
+              ..where((t) => t.id.equals(c2)))
+            .getSingle())
+        .uuid;
+    // c2 satırı u1 kimliğini benimser:
+    await db.adoptCategoryUuid(u2, u1);
+    final cats = await db.select(db.categories).get();
+    expect(cats.length, 1);
+    expect(cats.single.uuid, u1);
+    final prods = await db.select(db.products).get();
+    expect(prods.single.categoryId, c2);
+    await db.close();
+  });
 }
