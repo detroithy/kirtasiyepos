@@ -1775,8 +1775,80 @@ class AppDb extends _$AppDb {
   }
 
   /// Günlük özet: ciro, kdv, kar, fiş sayısı.
-  Future<DaySummary> daySummary(DateTime day) async {
+  /// Belirli günün fişleri (saatlik grafik için).
+  Future<List<Sale>> salesOnDay(DateTime day) {
     final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+    return (select(sales)
+          ..where((t) => t.date.isBetweenValues(start, end))
+          ..orderBy([(t) => OrderingTerm.asc(t.date)]))
+        .get();
+  }
+
+  /// Son 7 gün (bugün dahil): ciro + net kâr noktaları.
+  Future<List<DayPoint>> last7Days({DateTime? now}) async {
+    final base = now ?? DateTime.now();
+    final out = <DayPoint>[];
+    for (var i = 6; i >= 0; i--) {
+      final d = DateTime(base.year, base.month, base.day)
+          .subtract(Duration(days: i));
+      final s = await daySummary(d);
+      out.add(DayPoint(d, s.total, s.netProfit));
+    }
+    return out;
+  }
+
+  /// Kategori ciro dağılımı: fiş satırları × ürün kategorisi.
+  /// Kategorisizler "Diğer" kovasına düşer.
+  Future<Map<String, double>> categoryRevenue(
+      DateTime start, DateTime end) async {
+    final rows = await (select(sales)
+          ..where((t) => t.date.isBetweenValues(start, end.nextDay())))
+        .get();
+    if (rows.isEmpty) return {};
+    final ids = rows.map((r) => r.id).toList();
+    final items = await (select(saleItems)
+          ..where((t) => t.saleId.isIn(ids)))
+        .get();
+    final pids =
+        items.map((e) => e.productId).whereType<int>().toSet().toList();
+    final cmap = <int, String>{};
+    final prodCat = <int, int?>{};
+    if (pids.isNotEmpty) {
+      final prods = await (select(products)
+            ..where((t) => t.id.isIn(pids)))
+          .get();
+      final cids =
+          prods.map((p) => p.categoryId).whereType<int>().toSet().toList();
+      if (cids.isNotEmpty) {
+        final cats = await (select(categories)
+              ..where((t) => t.id.isIn(cids)))
+            .get();
+        for (final c in cats) {
+          cmap[c.id] = c.name;
+        }
+      }
+      for (final p in prods) {
+        prodCat[p.id] = p.categoryId;
+      }
+    }
+    final out = <String, double>{};
+    for (final i in items) {
+      final line = i.unitPrice * i.qty;
+      String bucket = 'Diğer';
+      final pid = i.productId;
+      if (pid != null) {
+        final cid = prodCat[pid];
+        if (cid != null && cmap.containsKey(cid)) {
+          bucket = cmap[cid]!;
+        }
+      }
+      out[bucket] = (out[bucket] ?? 0) + line;
+    }
+    return out;
+  }
+
+  Future<DaySummary> daySummary(DateTime day) async {    final start = DateTime(day.year, day.month, day.day);
     final end = start.add(const Duration(days: 1));
     final rows = await (select(sales)
           ..where((t) => t.date.isBetweenValues(start, end)))
@@ -1968,6 +2040,28 @@ class RangeSummary {
     required this.payCounts,
   });
   double get netProfit => profit - expenses;
+}
+
+/// 7 günlük trend noktası: gün + ciro + net kâr.
+class DayPoint {
+  final DateTime day;
+  final double total;
+  final double net;
+  const DayPoint(this.day, this.total, this.net);
+}
+
+/// Saatlik ciro kovaları (0-23). İade fişleri düşer (negatif).
+/// Saf fonksiyon — testi kolay.
+List<double> hourlyBuckets(List<Sale> sales, DateTime day) {
+  final out = List<double>.filled(24, 0);
+  for (final s in sales) {
+    if (s.date.year == day.year &&
+        s.date.month == day.month &&
+        s.date.day == day.day) {
+      out[s.date.hour] += s.total;
+    }
+  }
+  return out;
 }
 
 /// KDV oranı başına matrah (KDV hariç) + hesaplanan KDV.

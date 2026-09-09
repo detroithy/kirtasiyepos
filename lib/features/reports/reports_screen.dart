@@ -11,6 +11,7 @@ import '../../core/sync/cloud.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 import '../../core/widgets/kpi_card.dart';
+import 'charts_section.dart';
 
 /// Mali Raporlar: aralık seçimi, KPI'lar, KDV matris tablosu,
 /// ödeme dağılımı, CSV aktarım.
@@ -283,6 +284,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
                               ),
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    ChartsSection(
+                        db: db, start: _start, end: _end),
                     const SizedBox(height: 12),
                     FilledButton.tonalIcon(
                       onPressed: () => _exportCsv(context, db),
