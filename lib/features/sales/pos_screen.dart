@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app.dart';
 import '../../core/database/app_db.dart';
+import '../../core/sync/cloud.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 import '../products/quick_add.dart';
@@ -100,6 +101,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           kdvAmount: drift.Value(kdv),
           buyPriceSnapshot: drift.Value(p.buyPrice),
           profit: drift.Value(kar),
+          uuid: newUuid(),
+          saleUuid: const drift.Value(''),
         );
       }).toList();
       final profit = _cart.fold(
@@ -135,6 +138,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         _results = [];
         _paidCtrl.clear();
       });
+      Cloud.instance.refreshPending();
       _receiptDialog(
         receiptNo: result.receiptNo,
         lines: lines,

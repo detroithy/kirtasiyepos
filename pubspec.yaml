@@ -46,6 +46,10 @@ dependencies:
   printing: ^5.15.0
   pdf: ^3.13.0
   permission_handler: 12.0.0
+  supabase_flutter: ^2.17.2
+  connectivity_plus: ^7.3.1
+  shared_preferences: ^2.5.5
+  sqlite3: ^3.5.2
 
 dev_dependencies:
   flutter_test:

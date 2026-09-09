@@ -153,27 +153,22 @@ Future<Product?> showQuickAddSheet(
                       0;
                   if (num(sell.text) <= 0) return;
                   try {
-                    final id =
-                        await db.into(db.products).insert(
-                              ProductsCompanion.insert(
-                                barcode: drift.Value(barcode),
-                                name: name.text.trim(),
-                                categoryId:
-                                    drift.Value(catId),
-                                buyPrice: drift
-                                    .Value(num(buy.text)),
-                                sellPrice: drift
-                                    .Value(num(sell.text)),
-                                kdvRate:
-                                    drift.Value(kdv),
-                                stock: drift
-                                    .Value(num(stock.text)),
-                              ),
-                            );
-                    final created = await (db.select(
-                                db.products)
-                          ..where((t) => t.id.equals(id)))
-                        .getSingle();
+                    final created =
+                        await db.insertProduct(
+                      ProductsCompanion.insert(
+                        barcode: drift.Value(barcode),
+                        name: name.text.trim(),
+                        categoryId: drift.Value(catId),
+                        buyPrice:
+                            drift.Value(num(buy.text)),
+                        sellPrice:
+                            drift.Value(num(sell.text)),
+                        kdvRate: drift.Value(kdv),
+                        stock:
+                            drift.Value(num(stock.text)),
+                        uuid: newUuid(),
+                      ),
+                    );
                     if (ctx.mounted) {
                       Navigator.pop(ctx, created);
                     }

@@ -48,6 +48,8 @@ void main() {
           kdvAmount: drift.Value(kdv),
           buyPriceSnapshot: drift.Value(p.buyPrice),
           profit: drift.Value(kar),
+          uuid: newUuid(),
+          saleUuid: const drift.Value(''),
         ),
       ],
       total: p.sellPrice * qty,
@@ -75,5 +77,44 @@ void main() {
     // kdvAmount adetli saklanır -> kırılım tek kat olmalı
     expect(r.kdvBreakdown[p.kdvRate]!.kdv, kdv);
     expect(r.payTotals['nakit'], p.sellPrice * qty);
+  });
+
+  test('satış kuyruğa yazar (senkron outbox)', () async {
+    final p = (await db.searchProducts('Kurşun Kalem')).single;
+    await db.completeSale(
+      items: [
+        SaleItemsCompanion.insert(
+          saleId: 0,
+          productId: drift.Value(p.id),
+          name: p.name,
+          qty: 1,
+          unitPrice: p.sellPrice,
+          kdvRate: drift.Value(p.kdvRate),
+          kdvAmount: drift.Value(kdvTutar(p.sellPrice, p.kdvRate)),
+          buyPriceSnapshot: drift.Value(p.buyPrice),
+          profit: drift.Value(1),
+          uuid: newUuid(),
+          saleUuid: const drift.Value(''),
+        ),
+      ],
+      total: p.sellPrice,
+      kdvTotal: 1,
+      profitTotal: 1,
+    );
+    // 1 satış + 1 satır + 1 hareket + 1 ürün güncellemesi
+    expect(await db.pendingCount(), 4);
+    final ops = await db.pendingOps();
+    expect(ops.map((o) => o.entity).toSet(),
+        {'sales', 'sale_items', 'stock_movements', 'products'});
+  });
+
+  test('yumuşak silme listeden düşürür', () async {
+    final p = (await db.searchProducts('Kurşun Kalem')).single;
+    await db.softDeleteProduct(p.id);
+    expect(await db.searchProducts('Kurşun Kalem'), isEmpty);
+    expect(await db.findByBarcode(p.barcode ?? 'yok'), isNull);
+    final all = await db.select(db.products).get();
+    expect(all.length, 3); // satır durur, bayrak değişir
+    expect(await db.pendingCount(), greaterThan(0));
   });
 }

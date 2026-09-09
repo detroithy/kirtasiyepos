@@ -7,7 +7,6 @@ import '../../core/database/app_db.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/money.dart';
 import '../../core/widgets/kpi_card.dart';
-
 /// Günlük Özet: ciro / KDV / kar / gider KPI kartları + gider girişi.
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -204,16 +203,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     double.tryParse(amount.text.replaceAll(',', '.')) ??
                         0;
                 if (a <= 0) return;
-                await db.into(db.expenses).insert(
-                      ExpensesCompanion.insert(
-                        date: drift.Value(_day),
-                        category: cat,
-                        amount: a,
-                        note: drift.Value(note.text.isEmpty
-                            ? null
-                            : note.text),
-                      ),
-                    );
+                await db.insertExpense(
+                  ExpensesCompanion.insert(
+                    date: drift.Value(_day),
+                    category: cat,
+                    amount: a,
+                    note: drift.Value(
+                        note.text.isEmpty ? null : note.text),
+                    uuid: newUuid(),
+                  ),
+                );
                 if (ctx.mounted) Navigator.pop(ctx);
                 setState(() {});
               },

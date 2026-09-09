@@ -7,17 +7,25 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
-/// Yedekleme + donanım durumu + bilgi ekranı.
-class SettingsScreen extends ConsumerWidget {
+import '../../core/sync/cloud.dart';
+
+/// Yedekleme + bulut senkron + donanım + bilgi ekranı.
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('KırtasiyePOS • Ayarlar')),
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
+          const CloudCard(),
           Card(
             child: ListTile(
               leading: const Icon(Icons.backup),
@@ -177,5 +185,219 @@ class SettingsScreen extends ConsumerWidget {
             SnackBar(content: Text('Yazdırma hatası: $e')));
       }
     }
+  }
+}
+
+/// Bulut senkron kartı (Faz-3): Supabase bağlantısı + giriş + kasa kodu.
+class CloudCard extends StatefulWidget {
+  const CloudCard({super.key});
+
+  @override
+  State<CloudCard> createState() => _CloudCardState();
+}
+
+class _CloudCardState extends State<CloudCard> {
+  final _url = TextEditingController();
+  final _key = TextEditingController();
+  final _email = TextEditingController();
+  final _pass = TextEditingController();
+  final _device = TextEditingController(text: 'K1');
+  bool _loaded = false;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final cfg = await Cloud.instance.savedConfig();
+    _url.text = cfg['url'] ?? '';
+    _key.text = cfg['key'] ?? '';
+    _device.text = await Cloud.instance.deviceCode();
+    if (mounted) setState(() => _loaded = true);
+  }
+
+  @override
+  void dispose() {
+    _url.dispose();
+    _key.dispose();
+    _email.dispose();
+    _pass.dispose();
+    _device.dispose();
+    super.dispose();
+  }
+
+  void _msg(String t, {bool err = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(t),
+      backgroundColor: err ? Colors.red.shade700 : null,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) {
+      return const Card(
+          child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator())));
+    }
+    return Card(
+      child: ExpansionTile(
+        leading: const Icon(Icons.cloud_sync),
+        title: const Text('Bulut Senkron (telefon + PC)'),
+        subtitle: ValueListenableBuilder<CloudStatus>(
+          valueListenable: cloudStatus,
+          builder: (_, s, child) => Text(
+            switch (s.mode) {
+              CloudMode.off => 'Kapalı — URL + anahtar gerekli',
+              CloudMode.online =>
+                'Çevrimiçi${Cloud.instance.isAuthed ? ' • giriş açık' : ' • giriş gerekli'}',
+              CloudMode.offline => 'Çevrimdışı • ${s.pending} bekliyor',
+              CloudMode.syncing => 'Senkronize ediliyor...',
+              CloudMode.error => 'Hata: ${s.message ?? ''}',
+            },
+          ),
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _url,
+                  decoration: const InputDecoration(
+                      labelText: 'Supabase URL',
+                      hintText: 'https://xyz.supabase.co',
+                      border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _key,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                      labelText: 'Supabase anon key',
+                      border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _device,
+                        maxLength: 3,
+                        decoration: const InputDecoration(
+                            labelText: 'Kasa kodu',
+                            hintText: 'K1 / K2',
+                            border: OutlineInputBorder()),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _email,
+                        keyboardType:
+                            TextInputType.emailAddress,
+                        decoration: const InputDecoration(
+                            labelText: 'E-posta',
+                            border: OutlineInputBorder()),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _pass,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                      labelText: 'Şifre',
+                      border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _busy
+                            ? null
+                            : () async {
+                                setState(() => _busy = true);
+                                try {
+                                  await Cloud.instance
+                                      .saveConfig(
+                                          _url.text, _key.text);
+                                  await Cloud.instance
+                                      .setDeviceCode(_device.text
+                                          .trim()
+                                          .isEmpty
+                                          ? 'K1'
+                                          : _device.text
+                                              .trim()
+                                              .toUpperCase());
+                                  _msg(
+                                      'Kaydedildi. Uygulamayı kapatıp açın.');
+                                } finally {
+                                  if (mounted) {
+                                    setState(
+                                        () => _busy = false);
+                                  }
+                                }
+                              },
+                        icon: const Icon(Icons.save),
+                        label: const Text('Kaydet'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _busy
+                            ? null
+                            : () async {
+                                setState(() => _busy = true);
+                                try {
+                                  final err =
+                                      await Cloud.instance.signIn(
+                                          _email.text,
+                                          _pass.text);
+                                  if (!mounted) return;
+                                  if (err == null) {
+                                    _msg('Bağlandı, senkron başladı.');
+                                  } else {
+                                    _msg('Giriş hatası: $err',
+                                        err: true);
+                                  }
+                                } finally {
+                                  if (mounted) {
+                                    setState(
+                                        () => _busy = false);
+                                  }
+                                }
+                              },
+                        icon: const Icon(Icons.login),
+                        label: const Text('Bağlan'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton.icon(
+                    onPressed: () =>
+                        Cloud.instance.syncNow(),
+                    icon: const Icon(Icons.sync),
+                    label:
+                        const Text('Şimdi Senkronize Et'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

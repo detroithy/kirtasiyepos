@@ -159,7 +159,8 @@ class ProductsScreen extends ConsumerWidget {
       ),
     );
     if (ok == true) {
-      await (db.delete(db.products)..where((t) => t.id.equals(p.id))).go();
+      // Yumuşak silme: diğer cihaza bayrak olarak yayılır.
+      await db.softDeleteProduct(p.id);
     }
   }
 
@@ -334,11 +335,11 @@ class ProductsScreen extends ConsumerWidget {
                 );
                 try {
                   if (product == null) {
-                    await db.into(db.products).insert(comp);
+                    await db.insertProduct(comp.copyWith(
+                      uuid: drift.Value(newUuid()),
+                    ));
                   } else {
-                    await (db.update(db.products)
-                          ..where((t) => t.id.equals(product.id)))
-                        .write(comp);
+                    await db.updateProduct(product.id, comp);
                   }
                   if (ctx.mounted) Navigator.pop(ctx);
                 } catch (e) {
