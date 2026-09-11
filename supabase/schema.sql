@@ -142,7 +142,7 @@ DECLARE
 BEGIN
   FOREACH t IN ARRAY ARRAY['categories', 'suppliers', 'products',
     'stock_movements', 'sales', 'sale_items', 'expenses',
-    'supplier_ledger']
+    'supplier_ledger', 'cart_lines']
   LOOP
     IF NOT EXISTS (
       SELECT 1 FROM pg_publication_tables
@@ -197,3 +197,30 @@ alter table sales add column if not exists pos_status text not null default '';
 -- ============================================================
 alter table sales add column if not exists change_amount double precision not null default 0;
 -- (Realtime üyeliği yukarıdaki DO bloğunda halledilir.)
+
+-- ============================================================
+-- v7 eklentisi (paylaşılan sepet: tek kullanıcı, iki ekran)
+-- FK YOK (bilerek): yerel id'ler cihazlar arası taşınmaz,
+-- eşleşme product_uuid ile yapılır.
+-- MEVCUT projeye bu bloğu çalıştırın.
+-- ============================================================
+create table if not exists cart_lines (
+  uuid text primary key,
+  product_id integer,
+  product_uuid text not null default '',
+  barcode text,
+  name text not null,
+  qty double precision not null,
+  unit_price double precision not null,
+  kdv_rate double precision not null default 20,
+  buy_price double precision not null default 0,
+  device_code text not null default 'K1',
+  updated_at timestamptz not null default now(),
+  is_deleted boolean not null default false
+);
+create index if not exists cart_updated_idx on cart_lines(updated_at);
+
+alter table cart_lines enable row level security;
+drop policy if exists "auth_all" on cart_lines;
+create policy "auth_all" on cart_lines
+  for all to authenticated using (true) with check (true);

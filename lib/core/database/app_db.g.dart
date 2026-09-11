@@ -5511,6 +5511,743 @@ class SupplierLedgerCompanion extends UpdateCompanion<LedgerEntry> {
   }
 }
 
+class $CartLinesTable extends CartLines
+    with TableInfo<$CartLinesTable, CartRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CartLinesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _uuidMeta = const VerificationMeta('uuid');
+  @override
+  late final GeneratedColumn<String> uuid = GeneratedColumn<String>(
+    'uuid',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _productIdMeta = const VerificationMeta(
+    'productId',
+  );
+  @override
+  late final GeneratedColumn<int> productId = GeneratedColumn<int>(
+    'product_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _productUuidMeta = const VerificationMeta(
+    'productUuid',
+  );
+  @override
+  late final GeneratedColumn<String> productUuid = GeneratedColumn<String>(
+    'product_uuid',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _barcodeMeta = const VerificationMeta(
+    'barcode',
+  );
+  @override
+  late final GeneratedColumn<String> barcode = GeneratedColumn<String>(
+    'barcode',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _qtyMeta = const VerificationMeta('qty');
+  @override
+  late final GeneratedColumn<double> qty = GeneratedColumn<double>(
+    'qty',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _unitPriceMeta = const VerificationMeta(
+    'unitPrice',
+  );
+  @override
+  late final GeneratedColumn<double> unitPrice = GeneratedColumn<double>(
+    'unit_price',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kdvRateMeta = const VerificationMeta(
+    'kdvRate',
+  );
+  @override
+  late final GeneratedColumn<double> kdvRate = GeneratedColumn<double>(
+    'kdv_rate',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(20),
+  );
+  static const VerificationMeta _buyPriceMeta = const VerificationMeta(
+    'buyPrice',
+  );
+  @override
+  late final GeneratedColumn<double> buyPrice = GeneratedColumn<double>(
+    'buy_price',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _deviceCodeMeta = const VerificationMeta(
+    'deviceCode',
+  );
+  @override
+  late final GeneratedColumn<String> deviceCode = GeneratedColumn<String>(
+    'device_code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('K1'),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _isDeletedMeta = const VerificationMeta(
+    'isDeleted',
+  );
+  @override
+  late final GeneratedColumn<bool> isDeleted = GeneratedColumn<bool>(
+    'is_deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    uuid,
+    productId,
+    productUuid,
+    barcode,
+    name,
+    qty,
+    unitPrice,
+    kdvRate,
+    buyPrice,
+    deviceCode,
+    updatedAt,
+    isDeleted,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cart_lines';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CartRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('uuid')) {
+      context.handle(
+        _uuidMeta,
+        uuid.isAcceptableOrUnknown(data['uuid']!, _uuidMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_uuidMeta);
+    }
+    if (data.containsKey('product_id')) {
+      context.handle(
+        _productIdMeta,
+        productId.isAcceptableOrUnknown(data['product_id']!, _productIdMeta),
+      );
+    }
+    if (data.containsKey('product_uuid')) {
+      context.handle(
+        _productUuidMeta,
+        productUuid.isAcceptableOrUnknown(
+          data['product_uuid']!,
+          _productUuidMeta,
+        ),
+      );
+    }
+    if (data.containsKey('barcode')) {
+      context.handle(
+        _barcodeMeta,
+        barcode.isAcceptableOrUnknown(data['barcode']!, _barcodeMeta),
+      );
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('qty')) {
+      context.handle(
+        _qtyMeta,
+        qty.isAcceptableOrUnknown(data['qty']!, _qtyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_qtyMeta);
+    }
+    if (data.containsKey('unit_price')) {
+      context.handle(
+        _unitPriceMeta,
+        unitPrice.isAcceptableOrUnknown(data['unit_price']!, _unitPriceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_unitPriceMeta);
+    }
+    if (data.containsKey('kdv_rate')) {
+      context.handle(
+        _kdvRateMeta,
+        kdvRate.isAcceptableOrUnknown(data['kdv_rate']!, _kdvRateMeta),
+      );
+    }
+    if (data.containsKey('buy_price')) {
+      context.handle(
+        _buyPriceMeta,
+        buyPrice.isAcceptableOrUnknown(data['buy_price']!, _buyPriceMeta),
+      );
+    }
+    if (data.containsKey('device_code')) {
+      context.handle(
+        _deviceCodeMeta,
+        deviceCode.isAcceptableOrUnknown(data['device_code']!, _deviceCodeMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('is_deleted')) {
+      context.handle(
+        _isDeletedMeta,
+        isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CartRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CartRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      uuid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uuid'],
+      )!,
+      productId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}product_id'],
+      ),
+      productUuid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}product_uuid'],
+      )!,
+      barcode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}barcode'],
+      ),
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      qty: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}qty'],
+      )!,
+      unitPrice: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}unit_price'],
+      )!,
+      kdvRate: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}kdv_rate'],
+      )!,
+      buyPrice: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}buy_price'],
+      )!,
+      deviceCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}device_code'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      isDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_deleted'],
+      )!,
+    );
+  }
+
+  @override
+  $CartLinesTable createAlias(String alias) {
+    return $CartLinesTable(attachedDatabase, alias);
+  }
+}
+
+class CartRow extends DataClass implements Insertable<CartRow> {
+  final int id;
+  final String uuid;
+  final int? productId;
+  final String productUuid;
+  final String? barcode;
+  final String name;
+  final double qty;
+  final double unitPrice;
+  final double kdvRate;
+  final double buyPrice;
+  final String deviceCode;
+  final DateTime updatedAt;
+  final bool isDeleted;
+  const CartRow({
+    required this.id,
+    required this.uuid,
+    this.productId,
+    required this.productUuid,
+    this.barcode,
+    required this.name,
+    required this.qty,
+    required this.unitPrice,
+    required this.kdvRate,
+    required this.buyPrice,
+    required this.deviceCode,
+    required this.updatedAt,
+    required this.isDeleted,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['uuid'] = Variable<String>(uuid);
+    if (!nullToAbsent || productId != null) {
+      map['product_id'] = Variable<int>(productId);
+    }
+    map['product_uuid'] = Variable<String>(productUuid);
+    if (!nullToAbsent || barcode != null) {
+      map['barcode'] = Variable<String>(barcode);
+    }
+    map['name'] = Variable<String>(name);
+    map['qty'] = Variable<double>(qty);
+    map['unit_price'] = Variable<double>(unitPrice);
+    map['kdv_rate'] = Variable<double>(kdvRate);
+    map['buy_price'] = Variable<double>(buyPrice);
+    map['device_code'] = Variable<String>(deviceCode);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['is_deleted'] = Variable<bool>(isDeleted);
+    return map;
+  }
+
+  CartLinesCompanion toCompanion(bool nullToAbsent) {
+    return CartLinesCompanion(
+      id: Value(id),
+      uuid: Value(uuid),
+      productId: productId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(productId),
+      productUuid: Value(productUuid),
+      barcode: barcode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(barcode),
+      name: Value(name),
+      qty: Value(qty),
+      unitPrice: Value(unitPrice),
+      kdvRate: Value(kdvRate),
+      buyPrice: Value(buyPrice),
+      deviceCode: Value(deviceCode),
+      updatedAt: Value(updatedAt),
+      isDeleted: Value(isDeleted),
+    );
+  }
+
+  factory CartRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CartRow(
+      id: serializer.fromJson<int>(json['id']),
+      uuid: serializer.fromJson<String>(json['uuid']),
+      productId: serializer.fromJson<int?>(json['productId']),
+      productUuid: serializer.fromJson<String>(json['productUuid']),
+      barcode: serializer.fromJson<String?>(json['barcode']),
+      name: serializer.fromJson<String>(json['name']),
+      qty: serializer.fromJson<double>(json['qty']),
+      unitPrice: serializer.fromJson<double>(json['unitPrice']),
+      kdvRate: serializer.fromJson<double>(json['kdvRate']),
+      buyPrice: serializer.fromJson<double>(json['buyPrice']),
+      deviceCode: serializer.fromJson<String>(json['deviceCode']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      isDeleted: serializer.fromJson<bool>(json['isDeleted']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'uuid': serializer.toJson<String>(uuid),
+      'productId': serializer.toJson<int?>(productId),
+      'productUuid': serializer.toJson<String>(productUuid),
+      'barcode': serializer.toJson<String?>(barcode),
+      'name': serializer.toJson<String>(name),
+      'qty': serializer.toJson<double>(qty),
+      'unitPrice': serializer.toJson<double>(unitPrice),
+      'kdvRate': serializer.toJson<double>(kdvRate),
+      'buyPrice': serializer.toJson<double>(buyPrice),
+      'deviceCode': serializer.toJson<String>(deviceCode),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'isDeleted': serializer.toJson<bool>(isDeleted),
+    };
+  }
+
+  CartRow copyWith({
+    int? id,
+    String? uuid,
+    Value<int?> productId = const Value.absent(),
+    String? productUuid,
+    Value<String?> barcode = const Value.absent(),
+    String? name,
+    double? qty,
+    double? unitPrice,
+    double? kdvRate,
+    double? buyPrice,
+    String? deviceCode,
+    DateTime? updatedAt,
+    bool? isDeleted,
+  }) => CartRow(
+    id: id ?? this.id,
+    uuid: uuid ?? this.uuid,
+    productId: productId.present ? productId.value : this.productId,
+    productUuid: productUuid ?? this.productUuid,
+    barcode: barcode.present ? barcode.value : this.barcode,
+    name: name ?? this.name,
+    qty: qty ?? this.qty,
+    unitPrice: unitPrice ?? this.unitPrice,
+    kdvRate: kdvRate ?? this.kdvRate,
+    buyPrice: buyPrice ?? this.buyPrice,
+    deviceCode: deviceCode ?? this.deviceCode,
+    updatedAt: updatedAt ?? this.updatedAt,
+    isDeleted: isDeleted ?? this.isDeleted,
+  );
+  CartRow copyWithCompanion(CartLinesCompanion data) {
+    return CartRow(
+      id: data.id.present ? data.id.value : this.id,
+      uuid: data.uuid.present ? data.uuid.value : this.uuid,
+      productId: data.productId.present ? data.productId.value : this.productId,
+      productUuid: data.productUuid.present
+          ? data.productUuid.value
+          : this.productUuid,
+      barcode: data.barcode.present ? data.barcode.value : this.barcode,
+      name: data.name.present ? data.name.value : this.name,
+      qty: data.qty.present ? data.qty.value : this.qty,
+      unitPrice: data.unitPrice.present ? data.unitPrice.value : this.unitPrice,
+      kdvRate: data.kdvRate.present ? data.kdvRate.value : this.kdvRate,
+      buyPrice: data.buyPrice.present ? data.buyPrice.value : this.buyPrice,
+      deviceCode: data.deviceCode.present
+          ? data.deviceCode.value
+          : this.deviceCode,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CartRow(')
+          ..write('id: $id, ')
+          ..write('uuid: $uuid, ')
+          ..write('productId: $productId, ')
+          ..write('productUuid: $productUuid, ')
+          ..write('barcode: $barcode, ')
+          ..write('name: $name, ')
+          ..write('qty: $qty, ')
+          ..write('unitPrice: $unitPrice, ')
+          ..write('kdvRate: $kdvRate, ')
+          ..write('buyPrice: $buyPrice, ')
+          ..write('deviceCode: $deviceCode, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('isDeleted: $isDeleted')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    uuid,
+    productId,
+    productUuid,
+    barcode,
+    name,
+    qty,
+    unitPrice,
+    kdvRate,
+    buyPrice,
+    deviceCode,
+    updatedAt,
+    isDeleted,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CartRow &&
+          other.id == this.id &&
+          other.uuid == this.uuid &&
+          other.productId == this.productId &&
+          other.productUuid == this.productUuid &&
+          other.barcode == this.barcode &&
+          other.name == this.name &&
+          other.qty == this.qty &&
+          other.unitPrice == this.unitPrice &&
+          other.kdvRate == this.kdvRate &&
+          other.buyPrice == this.buyPrice &&
+          other.deviceCode == this.deviceCode &&
+          other.updatedAt == this.updatedAt &&
+          other.isDeleted == this.isDeleted);
+}
+
+class CartLinesCompanion extends UpdateCompanion<CartRow> {
+  final Value<int> id;
+  final Value<String> uuid;
+  final Value<int?> productId;
+  final Value<String> productUuid;
+  final Value<String?> barcode;
+  final Value<String> name;
+  final Value<double> qty;
+  final Value<double> unitPrice;
+  final Value<double> kdvRate;
+  final Value<double> buyPrice;
+  final Value<String> deviceCode;
+  final Value<DateTime> updatedAt;
+  final Value<bool> isDeleted;
+  const CartLinesCompanion({
+    this.id = const Value.absent(),
+    this.uuid = const Value.absent(),
+    this.productId = const Value.absent(),
+    this.productUuid = const Value.absent(),
+    this.barcode = const Value.absent(),
+    this.name = const Value.absent(),
+    this.qty = const Value.absent(),
+    this.unitPrice = const Value.absent(),
+    this.kdvRate = const Value.absent(),
+    this.buyPrice = const Value.absent(),
+    this.deviceCode = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+  });
+  CartLinesCompanion.insert({
+    this.id = const Value.absent(),
+    required String uuid,
+    this.productId = const Value.absent(),
+    this.productUuid = const Value.absent(),
+    this.barcode = const Value.absent(),
+    required String name,
+    required double qty,
+    required double unitPrice,
+    this.kdvRate = const Value.absent(),
+    this.buyPrice = const Value.absent(),
+    this.deviceCode = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+  }) : uuid = Value(uuid),
+       name = Value(name),
+       qty = Value(qty),
+       unitPrice = Value(unitPrice);
+  static Insertable<CartRow> custom({
+    Expression<int>? id,
+    Expression<String>? uuid,
+    Expression<int>? productId,
+    Expression<String>? productUuid,
+    Expression<String>? barcode,
+    Expression<String>? name,
+    Expression<double>? qty,
+    Expression<double>? unitPrice,
+    Expression<double>? kdvRate,
+    Expression<double>? buyPrice,
+    Expression<String>? deviceCode,
+    Expression<DateTime>? updatedAt,
+    Expression<bool>? isDeleted,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (uuid != null) 'uuid': uuid,
+      if (productId != null) 'product_id': productId,
+      if (productUuid != null) 'product_uuid': productUuid,
+      if (barcode != null) 'barcode': barcode,
+      if (name != null) 'name': name,
+      if (qty != null) 'qty': qty,
+      if (unitPrice != null) 'unit_price': unitPrice,
+      if (kdvRate != null) 'kdv_rate': kdvRate,
+      if (buyPrice != null) 'buy_price': buyPrice,
+      if (deviceCode != null) 'device_code': deviceCode,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (isDeleted != null) 'is_deleted': isDeleted,
+    });
+  }
+
+  CartLinesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? uuid,
+    Value<int?>? productId,
+    Value<String>? productUuid,
+    Value<String?>? barcode,
+    Value<String>? name,
+    Value<double>? qty,
+    Value<double>? unitPrice,
+    Value<double>? kdvRate,
+    Value<double>? buyPrice,
+    Value<String>? deviceCode,
+    Value<DateTime>? updatedAt,
+    Value<bool>? isDeleted,
+  }) {
+    return CartLinesCompanion(
+      id: id ?? this.id,
+      uuid: uuid ?? this.uuid,
+      productId: productId ?? this.productId,
+      productUuid: productUuid ?? this.productUuid,
+      barcode: barcode ?? this.barcode,
+      name: name ?? this.name,
+      qty: qty ?? this.qty,
+      unitPrice: unitPrice ?? this.unitPrice,
+      kdvRate: kdvRate ?? this.kdvRate,
+      buyPrice: buyPrice ?? this.buyPrice,
+      deviceCode: deviceCode ?? this.deviceCode,
+      updatedAt: updatedAt ?? this.updatedAt,
+      isDeleted: isDeleted ?? this.isDeleted,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (uuid.present) {
+      map['uuid'] = Variable<String>(uuid.value);
+    }
+    if (productId.present) {
+      map['product_id'] = Variable<int>(productId.value);
+    }
+    if (productUuid.present) {
+      map['product_uuid'] = Variable<String>(productUuid.value);
+    }
+    if (barcode.present) {
+      map['barcode'] = Variable<String>(barcode.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (qty.present) {
+      map['qty'] = Variable<double>(qty.value);
+    }
+    if (unitPrice.present) {
+      map['unit_price'] = Variable<double>(unitPrice.value);
+    }
+    if (kdvRate.present) {
+      map['kdv_rate'] = Variable<double>(kdvRate.value);
+    }
+    if (buyPrice.present) {
+      map['buy_price'] = Variable<double>(buyPrice.value);
+    }
+    if (deviceCode.present) {
+      map['device_code'] = Variable<String>(deviceCode.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (isDeleted.present) {
+      map['is_deleted'] = Variable<bool>(isDeleted.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CartLinesCompanion(')
+          ..write('id: $id, ')
+          ..write('uuid: $uuid, ')
+          ..write('productId: $productId, ')
+          ..write('productUuid: $productUuid, ')
+          ..write('barcode: $barcode, ')
+          ..write('name: $name, ')
+          ..write('qty: $qty, ')
+          ..write('unitPrice: $unitPrice, ')
+          ..write('kdvRate: $kdvRate, ')
+          ..write('buyPrice: $buyPrice, ')
+          ..write('deviceCode: $deviceCode, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('isDeleted: $isDeleted')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDb extends GeneratedDatabase {
   _$AppDb(QueryExecutor e) : super(e);
   $AppDbManager get managers => $AppDbManager(this);
@@ -5524,6 +6261,7 @@ abstract class _$AppDb extends GeneratedDatabase {
   late final $SyncQueueTable syncQueue = $SyncQueueTable(this);
   late final $SyncStateTable syncState = $SyncStateTable(this);
   late final $SupplierLedgerTable supplierLedger = $SupplierLedgerTable(this);
+  late final $CartLinesTable cartLines = $CartLinesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5539,6 +6277,7 @@ abstract class _$AppDb extends GeneratedDatabase {
     syncQueue,
     syncState,
     supplierLedger,
+    cartLines,
   ];
 }
 
@@ -9526,6 +10265,357 @@ typedef $$SupplierLedgerTableProcessedTableManager =
       LedgerEntry,
       PrefetchHooks Function({bool supplierId})
     >;
+typedef $$CartLinesTableCreateCompanionBuilder = CartLinesCompanion Function({
+  Value<int> id,
+  required String uuid,
+  Value<int?> productId,
+  Value<String> productUuid,
+  Value<String?> barcode,
+  required String name,
+  required double qty,
+  required double unitPrice,
+  Value<double> kdvRate,
+  Value<double> buyPrice,
+  Value<String> deviceCode,
+  Value<DateTime> updatedAt,
+  Value<bool> isDeleted,
+});
+typedef $$CartLinesTableUpdateCompanionBuilder = CartLinesCompanion Function({
+  Value<int> id,
+  Value<String> uuid,
+  Value<int?> productId,
+  Value<String> productUuid,
+  Value<String?> barcode,
+  Value<String> name,
+  Value<double> qty,
+  Value<double> unitPrice,
+  Value<double> kdvRate,
+  Value<double> buyPrice,
+  Value<String> deviceCode,
+  Value<DateTime> updatedAt,
+  Value<bool> isDeleted,
+});
+
+class $$CartLinesTableFilterComposer
+    extends Composer<_$AppDb, $CartLinesTable> {
+  $$CartLinesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uuid => $composableBuilder(
+    column: $table.uuid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get productId => $composableBuilder(
+    column: $table.productId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get productUuid => $composableBuilder(
+    column: $table.productUuid,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get barcode => $composableBuilder(
+    column: $table.barcode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get qty => $composableBuilder(
+    column: $table.qty,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get unitPrice => $composableBuilder(
+    column: $table.unitPrice,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get kdvRate => $composableBuilder(
+    column: $table.kdvRate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get buyPrice => $composableBuilder(
+    column: $table.buyPrice,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get deviceCode => $composableBuilder(
+    column: $table.deviceCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CartLinesTableOrderingComposer
+    extends Composer<_$AppDb, $CartLinesTable> {
+  $$CartLinesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get uuid => $composableBuilder(
+    column: $table.uuid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get productId => $composableBuilder(
+    column: $table.productId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get productUuid => $composableBuilder(
+    column: $table.productUuid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get barcode => $composableBuilder(
+    column: $table.barcode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get qty => $composableBuilder(
+    column: $table.qty,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get unitPrice => $composableBuilder(
+    column: $table.unitPrice,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get kdvRate => $composableBuilder(
+    column: $table.kdvRate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get buyPrice => $composableBuilder(
+    column: $table.buyPrice,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get deviceCode => $composableBuilder(
+    column: $table.deviceCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CartLinesTableAnnotationComposer
+    extends Composer<_$AppDb, $CartLinesTable> {
+  $$CartLinesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get uuid =>
+      $composableBuilder(column: $table.uuid, builder: (column) => column);
+
+  GeneratedColumn<int> get productId =>
+      $composableBuilder(column: $table.productId, builder: (column) => column);
+
+  GeneratedColumn<String> get productUuid => $composableBuilder(
+    column: $table.productUuid,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get barcode =>
+      $composableBuilder(column: $table.barcode, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<double> get qty =>
+      $composableBuilder(column: $table.qty, builder: (column) => column);
+
+  GeneratedColumn<double> get unitPrice =>
+      $composableBuilder(column: $table.unitPrice, builder: (column) => column);
+
+  GeneratedColumn<double> get kdvRate =>
+      $composableBuilder(column: $table.kdvRate, builder: (column) => column);
+
+  GeneratedColumn<double> get buyPrice =>
+      $composableBuilder(column: $table.buyPrice, builder: (column) => column);
+
+  GeneratedColumn<String> get deviceCode => $composableBuilder(
+    column: $table.deviceCode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDeleted =>
+      $composableBuilder(column: $table.isDeleted, builder: (column) => column);
+}
+
+class $$CartLinesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDb,
+          $CartLinesTable,
+          CartRow,
+          $$CartLinesTableFilterComposer,
+          $$CartLinesTableOrderingComposer,
+          $$CartLinesTableAnnotationComposer,
+          $$CartLinesTableCreateCompanionBuilder,
+          $$CartLinesTableUpdateCompanionBuilder,
+          (CartRow, BaseReferences<_$AppDb, $CartLinesTable, CartRow>),
+          CartRow,
+          PrefetchHooks Function()
+        > {
+  $$CartLinesTableTableManager(_$AppDb db, $CartLinesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CartLinesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CartLinesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CartLinesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> uuid = const Value.absent(),
+                Value<int?> productId = const Value.absent(),
+                Value<String> productUuid = const Value.absent(),
+                Value<String?> barcode = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<double> qty = const Value.absent(),
+                Value<double> unitPrice = const Value.absent(),
+                Value<double> kdvRate = const Value.absent(),
+                Value<double> buyPrice = const Value.absent(),
+                Value<String> deviceCode = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+              }) => CartLinesCompanion(
+                id: id,
+                uuid: uuid,
+                productId: productId,
+                productUuid: productUuid,
+                barcode: barcode,
+                name: name,
+                qty: qty,
+                unitPrice: unitPrice,
+                kdvRate: kdvRate,
+                buyPrice: buyPrice,
+                deviceCode: deviceCode,
+                updatedAt: updatedAt,
+                isDeleted: isDeleted,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String uuid,
+                Value<int?> productId = const Value.absent(),
+                Value<String> productUuid = const Value.absent(),
+                Value<String?> barcode = const Value.absent(),
+                required String name,
+                required double qty,
+                required double unitPrice,
+                Value<double> kdvRate = const Value.absent(),
+                Value<double> buyPrice = const Value.absent(),
+                Value<String> deviceCode = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+              }) => CartLinesCompanion.insert(
+                id: id,
+                uuid: uuid,
+                productId: productId,
+                productUuid: productUuid,
+                barcode: barcode,
+                name: name,
+                qty: qty,
+                unitPrice: unitPrice,
+                kdvRate: kdvRate,
+                buyPrice: buyPrice,
+                deviceCode: deviceCode,
+                updatedAt: updatedAt,
+                isDeleted: isDeleted,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$CartLinesTable, CartRow>(table),
+                  BaseReferences<_$AppDb, $CartLinesTable, CartRow>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CartLinesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDb,
+      $CartLinesTable,
+      CartRow,
+      $$CartLinesTableFilterComposer,
+      $$CartLinesTableOrderingComposer,
+      $$CartLinesTableAnnotationComposer,
+      $$CartLinesTableCreateCompanionBuilder,
+      $$CartLinesTableUpdateCompanionBuilder,
+      (CartRow, BaseReferences<_$AppDb, $CartLinesTable, CartRow>),
+      CartRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDbManager {
   final _$AppDb _db;
@@ -9550,4 +10640,6 @@ class $AppDbManager {
       $$SyncStateTableTableManager(_db, _db.syncState);
   $$SupplierLedgerTableTableManager get supplierLedger =>
       $$SupplierLedgerTableTableManager(_db, _db.supplierLedger);
+  $$CartLinesTableTableManager get cartLines =>
+      $$CartLinesTableTableManager(_db, _db.cartLines);
 }

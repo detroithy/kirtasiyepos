@@ -36,7 +36,7 @@ DateTime? overlapCutoff(DateTime? cursor) =>
 /// (birleştirme sonradan satır ekleyebilir), o yüzden açık sıralanır.
 int pushRank(String entity) => switch (entity) {
       'categories' || 'suppliers' || 'expenses' => 0,
-      'products' || 'supplier_ledger' => 1,
+      'products' || 'supplier_ledger' || 'cart_lines' => 1,
       'sales' => 2,
       'sale_items' || 'stock_movements' => 3,
       _ => 9,
@@ -732,6 +732,12 @@ class Cloud {
       }
     }
 
+    // Paylaşılan sepet: küçük tablo, tam çekiş + LWW (satıştaki gibi
+    // imleç yok; her senkron güncel tabloyu yansıtır).
+    for (final row in await sb.from('cart_lines').select()) {
+      await db.applyCartLine(_m(row));
+    }
+
     // Değişmezler: imleçten sonrası (10 dk örtüşmeli — saat farkı
     // ve çekiş-sırası yarışında satır kaybolmasın; uuid-idempotent).
     // KRİTİK: imleç duvar saatine değil, GÖRÜLEN en yeni satıra
@@ -894,6 +900,24 @@ class Cloud {
           fm, fm['supplier_uuid'] as String?);
     }
 
+    final localCart = await db.cartUuids();
+    final remoteCart = await sb
+        .from('cart_lines')
+        .select('uuid,updated_at')
+        .gt('updated_at', since30)
+        .order('updated_at');
+    for (final r in remoteCart) {
+      final m = _m(r);
+      if (localCart.contains(m['uuid'])) continue;
+      final full = await sb
+          .from('cart_lines')
+          .select()
+          .eq('uuid', m['uuid'])
+          .maybeSingle();
+      if (full == null) continue;
+      await db.applyCartLine(_m(full));
+    }
+
     await db.savePulled('full_sync', now);
   }
 
@@ -910,6 +934,7 @@ class Cloud {
       'sale_items',
       'expenses',
       'supplier_ledger',
+      'cart_lines',
     ];
     var ch = _sb!.channel('kirtasiye');
     for (final t in tables) {

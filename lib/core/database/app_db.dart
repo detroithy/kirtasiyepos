@@ -184,6 +184,29 @@ class SupplierLedger extends Table {
       text().withDefault(const Constant('K1'))();
 }
 
+/// Paylaşılan sepet satırı (tek kullanıcı, iki ekran).
+/// productId YEREL id'dir (cihazlar arası taşınmaz); eşleşme için
+/// productUuid kullanılır. Stok düşümü satış anında snapshot ile olur.
+@DataClassName('CartRow')
+class CartLines extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get uuid => text().unique()();
+  IntColumn get productId => integer().nullable()();
+  TextColumn get productUuid => text().withDefault(const Constant(''))();
+  TextColumn get barcode => text().nullable()();
+  TextColumn get name => text()();
+  RealColumn get qty => real()();
+  RealColumn get unitPrice => real()();
+  RealColumn get kdvRate => real().withDefault(const Constant(20))();
+  RealColumn get buyPrice => real().withDefault(const Constant(0))();
+  TextColumn get deviceCode =>
+      text().withDefault(const Constant('K1'))();
+  DateTimeColumn get updatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
+  BoolColumn get isDeleted =>
+      boolean().withDefault(const Constant(false))();
+}
+
 @DriftDatabase(
   tables: [
     Categories,
@@ -196,6 +219,7 @@ class SupplierLedger extends Table {
     SyncQueue,
     SyncState,
     SupplierLedger,
+    CartLines,
   ],
 )
 class AppDb extends _$AppDb {
@@ -208,7 +232,7 @@ class AppDb extends _$AppDb {
   String deviceCode = 'K1';
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -298,6 +322,10 @@ class AppDb extends _$AppDb {
             // Para üstü ayrı kolon (sabit default'lu -> serbest).
             await customStatement(
                 'ALTER TABLE sales ADD COLUMN change_amount REAL NOT NULL DEFAULT 0.0');
+          }
+          if (from < 7) {
+            // Paylaşılan sepet: yeni tablo.
+            await m.createTable(cartLines);
           }
         },
       );
@@ -581,6 +609,13 @@ class AppDb extends _$AppDb {
             table: 'supplier_ledger',
             rowUuid: l.uuid,
             payload: payload);
+        n++;
+      }
+      for (final c in await select(cartLines).get()) {
+        await enqueue(
+            table: 'cart_lines',
+            rowUuid: c.uuid,
+            payload: cartPayload(c));
         n++;
       }
       return n;
@@ -1738,6 +1773,209 @@ class AppDb extends _$AppDb {
         .get();
     return rows.where((e) => e.isNotEmpty).toList();
   }
+
+  // ================= Paylaşılan sepet =================
+
+  /// Aktif sepet satırları (silinmişler hariç), eklenme sırasıyla.
+  Stream<List<CartRow>> watchCart() {
+    return (select(cartLines)
+          ..where((t) => t.isDeleted.equals(false))
+          ..orderBy([(t) => OrderingTerm.asc(t.id)]))
+        .watch();
+  }
+
+  Future<List<CartRow>> cartRows() {
+    return (select(cartLines)
+          ..where((t) => t.isDeleted.equals(false))
+          ..orderBy([(t) => OrderingTerm.asc(t.id)]))
+        .get();
+  }
+
+  /// Sepete ekle: aynı ürün varsa adedi artır (ürün id > 0 ise id ile,
+  /// hizmet ise ad+fiyat ile eşleşir). Her yazma kuyruğa girer.
+  Future<void> cartAdd({
+    int? productId,
+    String? productUuid,
+    String? barcode,
+    required String name,
+    double qty = 1,
+    required double unitPrice,
+    double kdvRate = 20,
+    double buyPrice = 0,
+  }) {
+    return transaction(() async {
+      CartRow? existing;
+      if (productId != null && productId > 0) {
+        existing = await (select(cartLines)
+              ..where((t) =>
+                  t.productId.equals(productId) &
+                  t.isDeleted.equals(false)))
+            .getSingleOrNull();
+      } else {
+        final cands = await (select(cartLines)
+              ..where((t) =>
+                  t.productId.isNull() & t.isDeleted.equals(false)))
+            .get();
+        for (final c in cands) {
+          if (c.name == name && c.unitPrice == unitPrice) {
+            existing = c;
+            break;
+          }
+        }
+      }
+      if (existing != null) {
+        await _cartWrite(existing, existing.qty + qty);
+        return;
+      }
+      final rowId = await into(cartLines).insert(
+        CartLinesCompanion.insert(
+          uuid: newUuid(),
+          productId: Value(productId),
+          productUuid: Value(productUuid ?? ''),
+          barcode: Value(barcode),
+          name: name,
+          qty: qty,
+          unitPrice: unitPrice,
+          kdvRate: Value(kdvRate),
+          buyPrice: Value(buyPrice),
+          deviceCode: Value(deviceCode),
+        ),
+      );
+      final row = await (select(cartLines)
+            ..where((t) => t.id.equals(rowId)))
+          .getSingle();
+      await enqueue(
+          table: 'cart_lines',
+          rowUuid: row.uuid,
+          payload: cartPayload(row));
+    });
+  }
+
+  Future<void> _cartWrite(CartRow row, double qty) async {
+    if (qty <= 0) {
+      await (update(cartLines)
+            ..where((t) => t.id.equals(row.id)))
+          .write(CartLinesCompanion(
+        isDeleted: const Value(true),
+        updatedAt: Value(DateTime.now()),
+      ));
+    } else {
+      await (update(cartLines)
+            ..where((t) => t.id.equals(row.id)))
+          .write(CartLinesCompanion(
+        qty: Value(qty),
+        updatedAt: Value(DateTime.now()),
+      ));
+    }
+    final fresh = await (select(cartLines)
+          ..where((t) => t.id.equals(row.id)))
+        .getSingle();
+    await enqueue(
+        table: 'cart_lines',
+        rowUuid: fresh.uuid,
+        payload: cartPayload(fresh));
+  }
+
+  Future<void> cartSetQty(String uuid, double qty) async {
+    final row = await (select(cartLines)
+          ..where((t) => t.uuid.equals(uuid)))
+        .getSingleOrNull();
+    if (row == null || row.isDeleted) return;
+    await _cartWrite(row, qty);
+  }
+
+  Future<void> cartRemove(String uuid) => cartSetQty(uuid, 0);
+
+  /// Sepeti boşalt (satış sonrası): tüm satırlar sil bayraklı + kuyruk.
+  Future<void> cartClear() {
+    return transaction(() async {
+      final rows = await cartRows();
+      for (final r in rows) {
+        await _cartWrite(r, 0);
+      }
+    });
+  }
+
+  Map<String, dynamic> cartPayload(CartRow r) => {
+        'uuid': r.uuid,
+        'product_id': r.productId,
+        'product_uuid': r.productUuid,
+        'barcode': r.barcode,
+        'name': r.name,
+        'qty': r.qty,
+        'unit_price': r.unitPrice,
+        'kdv_rate': r.kdvRate,
+        'buy_price': r.buyPrice,
+        'device_code': r.deviceCode,
+        'updated_at': r.updatedAt.toIso8601String(),
+        'is_deleted': r.isDeleted,
+      };
+
+  /// Uzak sepet satırını uygula (LWW; silinmişse aynen).
+  Future<void> applyCartLine(Map<String, dynamic> m) async {
+    final uuid = m['uuid'] as String;
+    final remoteUpdated =
+        DateTime.tryParse(m['updated_at'] as String? ?? '');
+    final local = await (select(cartLines)
+          ..where((t) => t.uuid.equals(uuid)))
+        .getSingleOrNull();
+    double d(dynamic v) => (v as num?)?.toDouble() ?? 0;
+    int? pid;
+    final pu = m['product_uuid'] as String?;
+    if (pu != null && pu.isNotEmpty) {
+      pid = await _productIdForUuid(pu);
+    } else {
+      final rawPid = m['product_id'];
+      if (rawPid is int && rawPid > 0) pid = rawPid;
+    }
+    if (local == null) {
+      await into(cartLines).insert(CartLinesCompanion.insert(
+        uuid: uuid,
+        productId: Value(pid),
+        productUuid:
+            Value(m['product_uuid'] as String? ?? ''),
+        barcode: Value(m['barcode'] as String?),
+        name: m['name'] as String? ?? '?',
+        qty: d(m['qty']),
+        unitPrice: d(m['unit_price']),
+        kdvRate: Value(d(m['kdv_rate'])),
+        buyPrice: Value(d(m['buy_price'])),
+        deviceCode:
+            Value(m['device_code'] as String? ?? '?'),
+        updatedAt: Value(remoteUpdated ?? DateTime.now()),
+        isDeleted: Value(m['is_deleted'] as bool? ?? false),
+      ));
+      return;
+    }
+    if (remoteUpdated != null &&
+        remoteUpdated.isAfter(local.updatedAt)) {
+      await (update(cartLines)..where((t) => t.id.equals(local.id)))
+          .write(CartLinesCompanion(
+        productId: Value(pid),
+        productUuid:
+            Value(m['product_uuid'] as String? ?? ''),
+        barcode: Value(m['barcode'] as String?),
+        name: Value(m['name'] as String? ?? local.name),
+        qty: Value(d(m['qty'])),
+        unitPrice: Value(d(m['unit_price'])),
+        kdvRate: Value(d(m['kdv_rate'])),
+        buyPrice: Value(d(m['buy_price'])),
+        updatedAt: Value(remoteUpdated),
+        isDeleted: Value(m['is_deleted'] as bool? ?? false),
+      ));
+    }
+  }
+
+  Future<Set<String>> cartUuids() async {
+    final rows =
+        await (selectOnly(cartLines)..addColumns([cartLines.uuid]))
+            .get();
+    return {for (final r in rows) r.read(cartLines.uuid)!};
+  }
+
+  /// Uzak ürün uuid'sinden yerel id (sepet satır çözümü).
+  Future<int?> productIdForUuid(String? uuid) =>
+      _productIdForUuid(uuid);
 
   // ================= İade =================
 

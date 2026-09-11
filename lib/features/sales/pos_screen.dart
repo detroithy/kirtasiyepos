@@ -21,12 +21,8 @@ import 'return_screen.dart';
 import 'pos_print.dart';
 import 'scan_screen.dart';
 
-/// Sepet satırı: ürün + adet.
-class CartLine {
-  final Product product;
-  double qty;
-  CartLine(this.product, [this.qty = 1]);
-}
+/// Sepet satırı artık DB'de yaşar (CartRow); iki ekranda ortak.
+/// Aşağıdaki yardımcılar akış (stream) aynasıyla çalışır.
 
 /// Tezgah üstü hızlı hizmetler (stoksuz, KDV %20 varsayılır).
 const List<(String, double)> quickServices = [
@@ -50,7 +46,11 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   final _paidCtrl = TextEditingController();
   final _searchFocus = FocusNode();
   List<Product> _results = [];
-  final List<CartLine> _cart = [];
+
+  /// Akış aynası: StreamBuilder her yayında günceller; toplamlar ve
+  /// satış buradan okur (her zaman güncel sepet).
+  List<CartRow> _cartCache = [];
+  late final Stream<List<CartRow>> _cartStream;
   String _payment = 'nakit';
   bool _busy = false;
   String _lastQuery = '';
@@ -66,6 +66,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   @override
   void initState() {
     super.initState();
+    _cartStream = _db.watchCart();
     _refreshPreview();
   }
 
@@ -117,7 +118,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   }
 
   double get _subtotal =>
-      _cart.fold(0.0, (s, l) => s + l.product.sellPrice * l.qty);
+      _cartCache.fold(0.0, (s, l) => s + l.unitPrice * l.qty);
 
   /// İndirim çarpanı: satır KDV/karı orantılı küçültür (matrah dürüstlüğü).
   double get _factor {
@@ -129,14 +130,11 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   /// ÖDENECEK tutar (ara toplam - indirim). Mevcut kullanımlar aynen çalışır.
   double get _total => _subtotal - _discount.clamp(0, _subtotal);
   double get _kdv =>
-      _cart.fold(
+      _cartCache.fold(
           0.0,
           (s, l) =>
-              s +
-              kdvTutar(l.product.sellPrice, l.product.kdvRate) *
-                  l.qty) *
+              s + kdvTutar(l.unitPrice, l.kdvRate) * l.qty) *
       _factor;
-  int get _count => _cart.length;
 
   /// Kaydedilecek para üstü: SADECE nakitte (alınan - toplam),
   /// diğer tiplerde her zaman 0. Kâra dokunmaz, ayrı izlenir.
@@ -167,15 +165,20 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     if (mounted) setState(() => _results = list);
   }
 
-  void _addToCart(Product p) {
-    final i = _cart.indexWhere((l) => l.product.id == p.id);
-    setState(() {
-      if (i >= 0) {
-        _cart[i].qty += 1;
-      } else {
-        _cart.add(CartLine(p));
-      }
-    });
+  /// Sepete ekle (DB'ye yazar -> anında iki ekrana düşer).
+  Future<void> _addToCart(Product p) async {
+    await _db.cartAdd(
+      productId: p.id > 0 ? p.id : null,
+      productUuid: p.id > 0 ? p.uuid : '',
+      barcode: p.barcode,
+      name: p.name,
+      qty: 1,
+      unitPrice: p.sellPrice,
+      kdvRate: p.kdvRate,
+      buyPrice: p.buyPrice,
+    );
+    Cloud.instance.refreshPending();
+    unawaited(Cloud.instance.syncNow());
     _refocusSearch();
   }
 
@@ -203,12 +206,12 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       amountKurus: (amountTl * 100).round(),
       receiptNo: receiptNo,
       lines: [
-        for (final l in _cart)
+        for (final l in _cartCache)
           PosLine(
-            name: l.product.name,
+            name: l.name,
             qty: l.qty,
-            unitPriceTl: l.product.sellPrice,
-            kdvDept: settings.deptFor(l.product.kdvRate),
+            unitPriceTl: l.unitPrice,
+            kdvDept: settings.deptFor(l.kdvRate),
           ),
       ],
       timeout: Duration(seconds: settings.timeoutSec),
@@ -333,46 +336,51 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   }
 
   Future<void> _completeSale() async {
-    if (_cart.isEmpty || _busy) return;
+    if (_cartCache.isEmpty || _busy) return;
     setState(() => _busy = true);
     try {
       final f = _factor;
-      final items = _cart.map((l) {
-        final p = l.product;
-        final kdv = kdvTutar(p.sellPrice, p.kdvRate) * l.qty * f;
+      final items = <SaleItemsCompanion>[];
+      for (final l in _cartCache) {
+        // Ürün uuid'sinden CANLI id çöz (birleştirmede id değişmiş olabilir).
+        int? pid;
+        if (l.productUuid.isNotEmpty) {
+          pid = await _db.productIdForUuid(l.productUuid);
+        } else {
+          pid = l.productId;
+        }
+        final kdv = kdvTutar(l.unitPrice, l.kdvRate) * l.qty * f;
         final kar =
-            satirKar(p.sellPrice, p.buyPrice, p.kdvRate, l.qty) * f;
-        return SaleItemsCompanion.insert(
+            satirKar(l.unitPrice, l.buyPrice, l.kdvRate, l.qty) * f;
+        items.add(SaleItemsCompanion.insert(
           saleId: 0, // completeSale içinde gerçek id yazılır
-          productId: p.id <= 0
-              ? const drift.Value<int?>(null) // hizmet: stoksuz
-              : drift.Value(p.id),
-          barcode: drift.Value(p.barcode),
-          name: p.name,
+          productId: drift.Value(pid), // hizmet/stoksuz: null
+          barcode: drift.Value(l.barcode),
+          name: l.name,
           qty: l.qty,
-          unitPrice: p.sellPrice,
-          kdvRate: drift.Value(p.kdvRate),
+          unitPrice: l.unitPrice,
+          kdvRate: drift.Value(l.kdvRate),
           kdvAmount: drift.Value(kdv),
-          buyPriceSnapshot: drift.Value(p.buyPrice),
+          buyPriceSnapshot: drift.Value(l.buyPrice),
           profit: drift.Value(kar),
           uuid: newUuid(),
           saleUuid: const drift.Value(''),
-        );
-      }).toList();
-      final profit = _cart.fold(
+        ));
+      }
+      final profit = _cartCache.fold(
               0.0,
               (s, l) =>
                   s +
-                  satirKar(l.product.sellPrice, l.product.buyPrice,
-                          l.product.kdvRate, l.qty) *
+                  satirKar(l.unitPrice, l.buyPrice, l.kdvRate,
+                          l.qty) *
                       _factor);
       // Fiş için sepet görüntüsü (temizlemeden önce kopyala).
-      final lines = _cart
+      final lines = _cartCache
           .map((l) => ReceiptLine(
-                name: l.product.name,
+                name: l.name,
                 qty: l.qty,
-                unitPrice: l.product.sellPrice,
-                kdvRate: l.product.kdvRate,
+                unitPrice: l.unitPrice,
+                kdvRate: l.kdvRate,
               ))
           .toList();
       final saleTotal = _total;
@@ -449,8 +457,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       // (Eskiden kart/cari'de negatif yazılıyordu — artık yazılmıyor.)
       final change = salePay == 'nakit' ? paidRaw - saleTotal : 0.0;
       if (!mounted) return;
+      await _db.cartClear();
       setState(() {
-        _cart.clear();
         _results = [];
         _paidCtrl.clear();
         _cashSplit = 0;
@@ -502,7 +510,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
   /// Parçalı ödeme: nakit tutarı gir, kart otomatik tamamlar.
   Future<bool> _parcaliDialog() async {
-    if (_cart.isEmpty) return false;
+    if (_cartCache.isEmpty) return false;
     final ctrl = TextEditingController(
         text: _cashSplit > 0
             ? _cashSplit.toString()
@@ -546,9 +554,10 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   }
 
   /// Cari (veresiye): müşteri adı zorunlu.
+
   /// Sepet indirimi: tutar veya % kısayol. KDV/kar orantılı küçülür.
   Future<void> _discountDialog() async {
-    if (_cart.isEmpty) return;
+    if (_cartCache.isEmpty) return;
     final ctrl = TextEditingController(
         text: _discount > 0 ? _discount.toString() : '');
     await showDialog(
@@ -1077,74 +1086,99 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     );
   }
 
-  /// Sepet paneli: kendi içinde kayar, asla overflow vermez.
+  /// Sepet paneli: DB akışından beslenir (iki ekranda ortak sepet).
+  /// Kendi içinde kayar, asla overflow vermez.
   Widget _cartPanel() {
     final paid = parseTr(_paidCtrl.text);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    return StreamBuilder<List<CartRow>>(
+      stream: _cartStream,
+      initialData: const [],
+      builder: (_, snap) {
+        final cart = snap.data ?? const [];
+        // Toplamlar/satış için güncel ayna:
+        _cartCache = cart;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _cartHeader(cart),
+              if (cart.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(child: Text('Sepet boş')),
+                ),
+              ...cart.map((l) => _cartTile(l)),
+              const Divider(),
+              _cartTotals(paid),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _cartHeader(List<CartRow> cart) {
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: Row(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Sepet ($_count)${_receiptPreview.isEmpty ? '' : ' • Fiş $_receiptPreview'}',
-                    style: Theme.of(context).textTheme.titleMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: _cart.isEmpty
-                      ? null
-                      : () => setState(() => _cart.clear()),
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Temizle'),
-                ),
-              ],
+          Expanded(
+            child: Text(
+              'Sepet (${cart.length})${_receiptPreview.isEmpty ? '' : ' • Fiş $_receiptPreview'}',
+              style: Theme.of(context).textTheme.titleMedium,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          if (_cart.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: Text('Sepet boş')),
+          TextButton.icon(
+            onPressed: cart.isEmpty ? null : () => _db.cartClear(),
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Temizle'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cartTile(CartRow l) {
+    return Card(
+      margin:
+          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: ListTile(
+        dense: true,
+        title: Text(l.name, style: const TextStyle(fontSize: 14)),
+        subtitle: Text(
+            '${money(l.unitPrice)} x ${fmtQty(l.qty)} = ${money(l.unitPrice * l.qty)}'),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.remove),
+              onPressed: () {
+                _db.cartSetQty(l.uuid, l.qty - 1);
+                _refocusSearch();
+              },
             ),
-          ..._cart.map((l) => Card(
-                margin:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: ListTile(
-                  dense: true,
-                  title: Text(l.product.name,
-                      style: const TextStyle(fontSize: 14)),
-                  subtitle: Text(
-                      '${money(l.product.sellPrice)} x ${fmtQty(l.qty)} = ${money(l.product.sellPrice * l.qty)}'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.remove),
-                        onPressed: () => setState(() {
-                          l.qty -= 1;
-                          if (l.qty <= 0) _cart.remove(l);
-                        }),
-                      ),
-                      Text(fmtQty(l.qty),
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold)),
-                      IconButton(
-                        icon: const Icon(Icons.add),
-                        onPressed: () =>
-                            setState(() => l.qty += 1),
-                      ),
-                    ],
-                  ),
-                ),
-              )),
-          const Divider(),
-          Padding(
+            Text(fmtQty(l.qty),
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold)),
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () {
+                _db.cartSetQty(l.uuid, l.qty + 1);
+                _refocusSearch();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Ara toplam + ödeme bloğu (akıştaki sepete göre çizilir).
+  Widget _cartTotals(double paid) {
+    return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1153,7 +1187,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     TextButton.icon(
-                      onPressed: _cart.isEmpty
+                      onPressed: _cartCache.isEmpty
                           ? null
                           : () => _discountDialog(),
                       icon: const Icon(Icons.percent, size: 18),
@@ -1247,8 +1281,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(6)),
                   ),
-                  onPressed:
-                      (_cart.isEmpty || _busy) ? null : _completeSale,
+                      onPressed:
+                          (_cartCache.isEmpty || _busy) ? null : _completeSale,
                   icon: _busy
                       ? const SizedBox(
                           width: 18,
@@ -1261,9 +1295,6 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
+          );
   }
 }
