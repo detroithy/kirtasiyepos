@@ -11,6 +11,7 @@ import '../../core/sync/cloud.dart';
 import '../pos_device/pos_device.dart';
 import '../pos_device/simulated_device.dart';
 import '../pos_device/tokenx_device.dart';
+import '../sales/pos_print.dart';
 
 /// Yedekleme + bulut senkron + donanım + bilgi ekranı.
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -57,6 +58,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               subtitle: const Text(
                   'Fiş ve etiketler sistem yazıcısına basılır'),
               children: [
+                FutureBuilder<double>(
+                  future: receiptWidthMm(),
+                  builder: (_, ws) {
+                    final w = ws.data ?? 80;
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(
+                          Icons.receipt_long_outlined,
+                          size: 20),
+                      title: const Text('Fiş kağıt genişliği'),
+                      subtitle: const Text(
+                          '56x10 termal rulo için 56 seçin'),
+                      trailing: DropdownButton<double>(
+                        value: w,
+                        items: const [
+                          DropdownMenuItem(
+                              value: 80,
+                              child: Text('80 mm')),
+                          DropdownMenuItem(
+                              value: 56,
+                              child: Text('56 mm')),
+                        ],
+                        onChanged: (v) async {
+                          if (v == null) return;
+                          await saveReceiptWidth(v);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context)
+                                .showSnackBar(SnackBar(
+                                    content: Text(
+                                        'Fiş genişliği: ${v.toInt()} mm')));
+                          }
+                        },
+                      ),
+                    );
+                  },
+                ),
                 FutureBuilder<List<Printer>>(
                   future: Printing.listPrinters(),
                   builder: (_, snap) {

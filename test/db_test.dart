@@ -454,4 +454,109 @@ void main() {
     );
     expect(r.change, 20);
   });
+
+  test('iban satışı kovaya düşer, cihazsız kaydedilir', () async {
+    final p = (await db.searchProducts('Kurşun Kalem')).single;
+    await db.completeSale(
+      items: [
+        SaleItemsCompanion.insert(
+          saleId: 0,
+          productId: drift.Value(p.id),
+          name: p.name,
+          qty: 2,
+          unitPrice: 15,
+          kdvRate: drift.Value(20),
+          kdvAmount: drift.Value(5),
+          buyPriceSnapshot: drift.Value(8),
+          profit: drift.Value(9),
+          uuid: newUuid(),
+          saleUuid: const drift.Value(''),
+        ),
+      ],
+      total: 30,
+      kdvTotal: 5,
+      profitTotal: 9,
+      paymentType: 'iban',
+      receiptNo: 'K1-IBAN1',
+    );
+    final r = await db.rangeSummary(
+      DateTime.now().subtract(const Duration(days: 1)),
+      DateTime.now(),
+    );
+    expect(r.payTotals['iban'], 30);
+    expect(r.payCounts['iban'], 1);
+    expect(r.total, 30);
+  });
+
+  test('müşteri listesi ve kişi borcu kapanır', () async {
+    final p = (await db.searchProducts('Kurşun Kalem')).single;
+    Future<int> cari(String cust, double total) async {
+      final r = await db.completeSale(
+        items: [
+          SaleItemsCompanion.insert(
+            saleId: 0,
+            productId: drift.Value(p.id),
+            name: p.name,
+            qty: 1,
+            unitPrice: total,
+            kdvRate: drift.Value(20),
+            kdvAmount: drift.Value(1),
+            buyPriceSnapshot: drift.Value(1),
+            profit: drift.Value(1),
+            uuid: newUuid(),
+            saleUuid: const drift.Value(''),
+          ),
+        ],
+        total: total,
+        kdvTotal: 1,
+        profitTotal: 1,
+        paymentType: 'cari',
+        customer: cust,
+      );
+      return r.id;
+    }
+
+    await cari('Ahmet', 100);
+    await cari('Ahmet', 50);
+    await cari('Zeynep', 30);
+    // Nakit müşterisi listeye girmez:
+    await db.completeSale(
+      items: [
+        SaleItemsCompanion.insert(
+          saleId: 0,
+          productId: drift.Value(p.id),
+          name: p.name,
+          qty: 1,
+          unitPrice: 10,
+          kdvRate: drift.Value(20),
+          kdvAmount: drift.Value(1),
+          buyPriceSnapshot: drift.Value(1),
+          profit: drift.Value(1),
+          uuid: newUuid(),
+          saleUuid: const drift.Value(''),
+        ),
+      ],
+      total: 10,
+      kdvTotal: 1,
+      profitTotal: 1,
+      customer: 'Mehmet',
+    );
+
+    final names = await db.distinctCustomers();
+    expect(names.toSet(), {'Ahmet', 'Zeynep'});
+
+    // Ahmet'in borcunu tamamen kapat:
+    final debts = await db.openDebts();
+    final ahmet =
+        debts.where((s) => s.customer == 'Ahmet').toList();
+    expect(ahmet.length, 2);
+    for (final s in ahmet) {
+      await db.collectDebt(
+          saleId: s.id, amount: s.total - s.paid);
+    }
+    final left = await db.openDebts();
+    expect(left.where((s) => s.customer == 'Ahmet'), isEmpty);
+    expect(left.length, 1); // Zeynep durur
+    expect(await db.openDebtsTotal(), 30);
+  });
 }

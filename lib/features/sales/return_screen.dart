@@ -182,7 +182,7 @@ class _ReturnScreenState extends ConsumerState<ReturnScreen> {
         action: SnackBarAction(
           label: 'Yazdır',
           textColor: Colors.white,
-          onPressed: () => printReceipt(
+          onPressed: () async => printReceipt(
             receiptNo: result.receiptNo,
             date: DateTime.now(),
             lines: printLines,
@@ -190,6 +190,7 @@ class _ReturnScreenState extends ConsumerState<ReturnScreen> {
             kdvTotal: kdv,
             profitTotal: 0,
             paymentType: sale.paymentType,
+            paperWidthMm: await receiptWidthMm(),
           ),
         ),
       ));

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:drift/drift.dart' as drift;
@@ -437,10 +438,13 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         change: _changeFor(salePay),
       );
       final paidRaw = parseTr(_paidCtrl.text);
-      // Nakit: elden alınan; parçalı: toplam (nakit+kart); cari: 0.
+      // Nakit: elden alınan; parçalı: toplam; iban: toplam (havale
+      // tutarı); kart/cari: 0 (kart cihazda, cari defterde izlenir).
       final paid = salePay == 'nakit'
           ? paidRaw
-          : (salePay == 'parcali' ? cash + card : 0.0);
+          : (salePay == 'parcali'
+              ? cash + card
+              : (salePay == 'iban' ? saleTotal : 0.0));
       // Para üstü SADECE nakitte olur; kart/cari/parçalıda her zaman 0.
       // (Eskiden kart/cari'de negatif yazılıyordu — artık yazılmıyor.)
       final change = salePay == 'nakit' ? paidRaw - saleTotal : 0.0;
@@ -455,6 +459,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         _discount = 0;
       });
       Cloud.instance.refreshPending();
+      // Karşı ekrana anlık düşsün diye hemen it (arka planda):
+      unawaited(Cloud.instance.syncNow());
       _refreshPreview();
       _receiptDialog(
         receiptNo: result.receiptNo,
@@ -626,22 +632,43 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
   Future<bool> _cariDialog() async {
     final ctrl = TextEditingController(text: _customer);
+    final known = await _db.distinctCustomers();
+    if (!mounted) return false;
     final res = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Cari Satış • Toplam ${money(_total)}'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          textInputAction: TextInputAction.done,
-          decoration: const InputDecoration(
-              labelText: 'Müşteri adı *',
-              border: OutlineInputBorder()),
-          onSubmitted: (_) {
-            if (ctrl.text.trim().isNotEmpty) {
-              _customer = ctrl.text.trim();
-              Navigator.pop(ctx, true);
+        content: Autocomplete<String>(
+          optionsBuilder: (v) {
+            final q = v.text.trim().toLowerCase();
+            if (q.isEmpty) return known;
+            return known.where(
+                (n) => n.toLowerCase().contains(q));
+          },
+          onSelected: (v) => ctrl.text = v,
+          fieldViewBuilder: (cctx, fctrl, fnode, onDone) {
+            // Kayıtlı ad ilk açılışta gelsin (yazarken dokunma):
+            if (fctrl.text.isEmpty && ctrl.text.isNotEmpty) {
+              fctrl.text = ctrl.text;
+              fctrl.selection = TextSelection.collapsed(
+                  offset: fctrl.text.length);
             }
+            return TextField(
+              controller: fctrl,
+              focusNode: fnode,
+              autofocus: true,
+              textInputAction: TextInputAction.done,
+              decoration: const InputDecoration(
+                  labelText: 'Müşteri adı * (yaz ya da seç)',
+                  border: OutlineInputBorder()),
+              onChanged: (v) => ctrl.text = v,
+              onSubmitted: (_) {
+                if (fctrl.text.trim().isNotEmpty) {
+                  _customer = fctrl.text.trim();
+                  Navigator.pop(ctx, true);
+                }
+              },
+            );
           },
         ),
         actions: [
@@ -802,6 +829,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   approvalCode: approvalCode,
                   fiscalNo: fiscalNo,
                   posStatus: posStatus,
+                  paperWidthMm: await receiptWidthMm(),
                 );
               } catch (e) {
                 if (mounted) {
@@ -826,6 +854,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
       'kart' => 'Ödeme: Kredi Kartı',
       'parcali' => 'Ödeme: Parçalı',
       'cari' => 'Ödeme: Cari${customer.isNotEmpty ? ' ($customer)' : ''}',
+      'iban' => 'Ödeme: IBAN/Havale',
       _ => 'Ödeme: Nakit',
     };
   }
@@ -1167,6 +1196,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                     _payChip(
                         'parcali', 'Parçalı', Icons.splitscreen),
                     _payChip('cari', 'Cari', Icons.book),
+                    _payChip('iban', 'IBAN',
+                        Icons.account_balance),
                   ],
                 ),
                 if (_payment == 'parcali')

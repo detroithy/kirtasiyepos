@@ -1726,6 +1726,19 @@ class AppDb extends _$AppDb {
     return list.fold<double>(0.0, (s, r) => s + (r.total - r.paid));
   }
 
+  /// Kayıtlı müşteri adları (cari satış otomatik-tamamlama için).
+  Future<List<String>> distinctCustomers() async {
+    final rows = await (selectOnly(sales, distinct: true)
+          ..addColumns([sales.customer])
+          ..where(sales.paymentType.equals('cari'))
+          ..orderBy([
+            OrderingTerm(expression: sales.customer),
+          ]))
+        .map((r) => r.read(sales.customer) ?? '')
+        .get();
+    return rows.where((e) => e.isNotEmpty).toList();
+  }
+
   // ================= İade =================
 
   /// Son fişler (iade ekranı listesi, yeniden eskiye).
@@ -1908,6 +1921,9 @@ class AppDb extends _$AppDb {
       if (r.paymentType == 'cari') {
         payTotals['cari'] =
             (payTotals['cari'] ?? 0) + (r.total - r.paid);
+      }
+      if (r.paymentType == 'iban') {
+        payTotals['iban'] = (payTotals['iban'] ?? 0) + r.total;
       }
       payCounts[r.paymentType] = (payCounts[r.paymentType] ?? 0) + 1;
     }

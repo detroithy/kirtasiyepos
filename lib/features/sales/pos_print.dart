@@ -1,8 +1,21 @@
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/utils/money.dart';
+
+/// Fiş kağıt genişliği (56/80mm termal). Ayarlar > Yazıcılar'dan seçilir.
+Future<double> receiptWidthMm() async {
+  final p = await SharedPreferences.getInstance();
+  final w = p.getDouble('receipt_width') ?? 80;
+  return (w == 56 || w == 80) ? w : 80;
+}
+
+Future<void> saveReceiptWidth(double w) async {
+  final p = await SharedPreferences.getInstance();
+  await p.setDouble('receipt_width', w);
+}
 
 /// Satış fişi satır modeli (POS sepetinden alınır).
 class ReceiptLine {  final String name;
@@ -23,6 +36,7 @@ String _payText(String type, String customer) {
     'parcali' => 'Odeme: Parcali (Nakit+Kart)',
     'cari' =>
       'Odeme: Cari${customer.isNotEmpty ? ' ($customer)' : ''}',
+    'iban' => 'Odeme: IBAN/Havale',
     _ => 'Odeme: Nakit',
   };
 }
@@ -44,6 +58,7 @@ Future<void> printReceipt({
   String approvalCode = '',
   String fiscalNo = '',
   String posStatus = '',
+  double paperWidthMm = 80,
 }) async {
   final doc = pw.Document();
   final mono = pw.TextStyle(font: pw.Font.courier(), fontSize: 9);
@@ -66,7 +81,7 @@ Future<void> printReceipt({
   doc.addPage(
     pw.Page(
       pageFormat: PdfPageFormat(
-        80 * PdfPageFormat.mm,
+        paperWidthMm * PdfPageFormat.mm,
         double.infinity,
         marginAll: 4 * PdfPageFormat.mm,
       ),

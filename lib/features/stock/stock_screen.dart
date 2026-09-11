@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -278,6 +280,7 @@ class _StockScreenState extends ConsumerState<StockScreen>
                       note: note.text.isEmpty ? null : note.text);
                 }
                 if (ctx.mounted) Navigator.pop(ctx);
+                unawaited(Cloud.instance.syncNow());
               } catch (e) {
                 if (ctx.mounted) {
                   ScaffoldMessenger.of(ctx).showSnackBar(

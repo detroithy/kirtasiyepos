@@ -69,6 +69,8 @@ class Cloud {
   Timer? _periodic;
   bool _running = false;
   DateTime? _lastStartAt;
+  DateTime? _lastRealtimeAt;
+  DateTime? _lastResubAt;
   bool _resumedOnce = false;
 
   static const kUrl = 'sb_url';
@@ -170,10 +172,10 @@ class Cloud {
     // Oturum değişince rozet/kart kendini güncellesin:
     sb.auth.onAuthStateChange.listen((_) => refreshPending());
     // Sürekli senkron: kaçan realtime olayı + uyku sonrası için
-    // 45 sn'de bir yoklama (çevrimiçi + giriş varsa).
+    // 30 sn'de bir yoklama (çevrimiçi + giriş varsa).
     _periodic?.cancel();
     _periodic = Timer.periodic(
-        const Duration(seconds: 45), (_) => _periodicTick());
+        const Duration(seconds: 30), (_) => _periodicTick());
     // Uygulamaya dönüşte hemen tazele (tek seferlik kayıt):
     if (!_resumedOnce) {
       _resumedOnce = true;
@@ -202,7 +204,28 @@ class Cloud {
     } catch (_) {
       return;
     }
+    // Realtime bekçisi: uzun süredir hiç olay gelmediyse kanal
+    // sessizce ölmüş olabilir — yeniden abone ol (en fazla ~5 dk'da bir).
+    final now = DateTime.now();
+    final lastEv = _lastRealtimeAt;
+    final lastRe = _lastResubAt;
+    if ((lastEv == null ||
+            now.difference(lastEv) > const Duration(minutes: 5)) &&
+        (lastRe == null ||
+            now.difference(lastRe) > const Duration(minutes: 5))) {
+      _lastResubAt = now;
+      _resubscribe();
+    }
     await syncNow();
+  }
+
+  void _resubscribe() {
+    try {
+      final ch = _channel;
+      _channel = null;
+      unawaited(ch?.unsubscribe());
+    } catch (_) {}
+    _subscribe();
   }
 
   Future<void> _onConnectivity({bool initial = false}) async {
@@ -334,10 +357,13 @@ class Cloud {
       if (await _db!.lastPulled('sales') == null) {
         await _db!.requeueAll();
       }
+      final hadPending = await _db!.pendingCount() > 0;
       await _push();
       await _pull();
       _subscribe();
       final p = await _db!.pendingCount();
+      // Bir şey ittikse karşı cihazı hemen dürt (anlık senkron):
+      if (hadPending) await _pingPeers();
       _set(CloudStatus(
           mode: CloudMode.online, pending: p, syncedAt: DateTime.now()));
     } catch (e) {
@@ -894,10 +920,34 @@ class Cloud {
         callback: (_) => _debouncedPull(),
       );
     }
+    // Cihazlar arası "hemen çek" dürtmesi (postgres olayından bağımsız):
+    ch = ch.onBroadcast(
+      event: 'kirtasiye-sync',
+      callback: (payload) {
+        if (payload['from'] == _db?.deviceCode) return; // kendi yankım
+        _debouncedPull();
+      },
+    );
     _channel = ch..subscribe();
   }
 
+  /// Karşı cihaza dürtme gönder (itme sonrası). Başarısızlık sessizdir.
+  Future<void> _pingPeers() async {
+    final ch = _channel;
+    if (ch == null || !isAuthed) return;
+    try {
+      await ch.sendBroadcastMessage(
+        event: 'kirtasiye-sync',
+        payload: {
+          'from': _db?.deviceCode ?? '?',
+          'at': DateTime.now().toIso8601String(),
+        },
+      );
+    } catch (_) {}
+  }
+
   void _debouncedPull() {
+    _lastRealtimeAt = DateTime.now();
     _debounce?.cancel();
     _debounce = Timer(const Duration(seconds: 2), () {
       if (!_running && isAuthed) syncNow();

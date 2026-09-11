@@ -49,8 +49,42 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
         } else {
           _end = d;
         }
+        // Ters aralık seçildiyse otomatik düzelt (yoksa boş rapor gelir):
+        if (_start.isAfter(_end)) {
+          final t = _start;
+          _start = _end;
+          _end = t;
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text(
+                  'Başlangıç bitişten sonraydı, aralık otomatik düzeltildi.')));
+        }
       });
     }
+  }
+
+  void _quickRange(String which) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    setState(() {
+      switch (which) {
+        case 'today':
+          _start = today;
+          _end = now;
+          break;
+        case 'yesterday':
+          _start = today.subtract(const Duration(days: 1));
+          _end = today.subtract(const Duration(days: 1));
+          break;
+        case 'week':
+          _start = today.subtract(const Duration(days: 6));
+          _end = now;
+          break;
+        case 'month':
+          _start = DateTime(now.year, now.month, 1);
+          _end = now;
+          break;
+      }
+    });
   }
 
   @override
@@ -82,6 +116,26 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
                     label: Text(fday(_end)),
                   ),
                 ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            child: Wrap(
+              spacing: 8,
+              children: [
+                ActionChip(
+                    label: const Text('Bugün'),
+                    onPressed: () => _quickRange('today')),
+                ActionChip(
+                    label: const Text('Dün'),
+                    onPressed: () => _quickRange('yesterday')),
+                ActionChip(
+                    label: const Text('Son 7 gün'),
+                    onPressed: () => _quickRange('week')),
+                ActionChip(
+                    label: const Text('Bu ay'),
+                    onPressed: () => _quickRange('month')),
               ],
             ),
           ),
@@ -314,6 +368,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
         'kart' => PosColors.navy,
         'cari' => PosColors.critTx,
         'parcali' => PosColors.royal,
+        'iban' => PosColors.okTx,
         _ => PosColors.amber,
       };
 
@@ -321,6 +376,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
         'kart' => 'Kredi Kartı',
         'cari' => 'Cari (açık veresiye)',
         'parcali' => 'Parçalı fiş',
+        'iban' => 'IBAN/Havale',
         _ => 'Nakit',
       };
 

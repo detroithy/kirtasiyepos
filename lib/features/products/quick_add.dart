@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/database/app_db.dart';
+import '../../core/sync/cloud.dart';
 import '../../core/utils/money.dart';
 
 /// Hızlı ürün kartı: barkod hazır gelir, sadece ad + fiyat yazılır.
@@ -169,6 +172,8 @@ Future<Product?> showQuickAddSheet(
                     );
                     if (ctx.mounted) {
                       Navigator.pop(ctx, created);
+                      // Karşı ekrana anlık düşsün:
+                      unawaited(Cloud.instance.syncNow());
                     }
                   } catch (e) {
                     if (ctx.mounted) {

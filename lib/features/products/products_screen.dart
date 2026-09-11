@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app.dart';
 import '../../core/database/app_db.dart';
+import '../../core/sync/cloud.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/barcode_gen.dart';
 import '../../core/utils/money.dart';
@@ -341,6 +344,7 @@ class ProductsScreen extends ConsumerWidget {
                     await db.updateProduct(product.id, comp);
                   }
                   if (ctx.mounted) Navigator.pop(ctx);
+                  unawaited(Cloud.instance.syncNow());
                 } catch (e) {
                   if (ctx.mounted) {
                     ScaffoldMessenger.of(ctx).showSnackBar(
